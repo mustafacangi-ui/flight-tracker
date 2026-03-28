@@ -3,6 +3,9 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useId, useState } from "react";
 
+import { createBrowserSupabaseClient } from "../lib/supabase/client";
+import { getOAuthRedirectToClient } from "../lib/oauthRedirect";
+
 type AuthMethod = "email" | "magic";
 
 export type RouteWingsAuthPayload = {
@@ -16,10 +19,38 @@ type Props = {
   onClose: () => void;
   /** After user completes auth form (terms + email). */
   onContinue?: (payload: RouteWingsAuthPayload) => void;
-  onGoogleClick?: () => void;
+  /** Error from OAuth redirect query (e.g. cancelled sign-in). */
+  oauthReturnError?: string | null;
+  onDismissOauthReturnError?: () => void;
   /** Headline variant when opened from Login vs Sign Up. */
   intent?: "login" | "signup";
 };
+
+function GoogleButtonSpinner({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg
+      className={`animate-spin text-slate-300 ${className}`}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      aria-hidden
+    >
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      />
+    </svg>
+  );
+}
 
 function GoogleIcon() {
   return (
@@ -174,7 +205,8 @@ export default function RouteWingsAuthModal({
   open,
   onClose,
   onContinue,
-  onGoogleClick,
+  oauthReturnError = null,
+  onDismissOauthReturnError,
   intent = "signup",
 }: Props) {
   const [method, setMethod] = useState<AuthMethod>("email");
@@ -182,6 +214,8 @@ export default function RouteWingsAuthModal({
   const [displayName, setDisplayName] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleError, setGoogleError] = useState<string | null>(null);
   const [pushOpen, setPushOpen] = useState(false);
   const [notifPermission, setNotifPermission] = useState<
     NotificationPermission | "unsupported"
@@ -189,10 +223,14 @@ export default function RouteWingsAuthModal({
 
   const titleId = useId();
 
+  const authBusy = googleLoading;
+
   useEffect(() => {
     if (!open) {
       setPushOpen(false);
       setFormError(null);
+      setGoogleLoading(false);
+      setGoogleError(null);
       return;
     }
     if (typeof Notification === "undefined") {
@@ -202,7 +240,41 @@ export default function RouteWingsAuthModal({
     setNotifPermission(Notification.permission);
   }, [open, pushOpen]);
 
+  const handleGoogleOAuth = useCallback(async () => {
+    onDismissOauthReturnError?.();
+    setGoogleError(null);
+    const supabase = createBrowserSupabaseClient();
+    if (!supabase) {
+      setGoogleError(
+        "Sign-in is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY."
+      );
+      return;
+    }
+    setGoogleLoading(true);
+    try {
+      const redirectTo = getOAuthRedirectToClient();
+      console.log("[auth] signInWithOAuth google", { redirectTo });
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo },
+      });
+      if (error) {
+        console.error("[auth] signInWithOAuth error", error.message);
+        setGoogleError(error.message);
+        setGoogleLoading(false);
+        return;
+      }
+      console.log("[auth] redirecting to provider", data?.url);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Something went wrong.";
+      console.error("[auth] signInWithOAuth exception", e);
+      setGoogleError(msg);
+      setGoogleLoading(false);
+    }
+  }, [onDismissOauthReturnError]);
+
   const handleContinue = useCallback(() => {
+    if (authBusy) return;
     setFormError(null);
     const trimmed = email.trim();
     if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
@@ -219,7 +291,7 @@ export default function RouteWingsAuthModal({
       method,
     });
     setPushOpen(true);
-  }, [agreed, displayName, email, method, onContinue]);
+  }, [agreed, authBusy, displayName, email, method, onContinue]);
 
   const handleEnableNotifications = useCallback(async () => {
     if (typeof Notification === "undefined") return;
@@ -299,12 +371,21 @@ export default function RouteWingsAuthModal({
 
               <button
                 type="button"
-                onClick={onGoogleClick}
-                className="flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-700 bg-slate-800 p-4 text-base font-medium transition hover:bg-slate-700"
+                disabled={authBusy}
+                onClick={() => void handleGoogleOAuth()}
+                className="flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-700 bg-slate-800 p-4 text-base font-medium transition hover:bg-slate-700 disabled:pointer-events-none disabled:opacity-45"
               >
-                <GoogleIcon />
+                {googleLoading ? <GoogleButtonSpinner /> : <GoogleIcon />}
                 Continue with Google
               </button>
+              {googleError || oauthReturnError ? (
+                <p
+                  className="mt-2 text-center text-xs leading-snug text-red-400/95"
+                  role="alert"
+                >
+                  {googleError || oauthReturnError}
+                </p>
+              ) : null}
 
               <div className="relative my-5 flex items-center justify-center">
                 <div className="absolute inset-x-0 border-t border-slate-700" />
@@ -322,8 +403,12 @@ export default function RouteWingsAuthModal({
                   type="button"
                   role="tab"
                   aria-selected={method === "email"}
-                  onClick={() => setMethod("email")}
-                  className={`rounded-2xl p-3 text-sm font-medium transition ${
+                  disabled={authBusy}
+                  onClick={() => {
+                    if (authBusy) return;
+                    setMethod("email");
+                  }}
+                  className={`rounded-2xl p-3 text-sm font-medium transition disabled:pointer-events-none disabled:opacity-45 ${
                     method === "email"
                       ? "bg-blue-600 text-white hover:bg-blue-500"
                       : "border border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700"
@@ -335,8 +420,12 @@ export default function RouteWingsAuthModal({
                   type="button"
                   role="tab"
                   aria-selected={method === "magic"}
-                  onClick={() => setMethod("magic")}
-                  className={`rounded-2xl p-3 text-sm font-medium transition ${
+                  disabled={authBusy}
+                  onClick={() => {
+                    if (authBusy) return;
+                    setMethod("magic");
+                  }}
+                  className={`rounded-2xl p-3 text-sm font-medium transition disabled:pointer-events-none disabled:opacity-45 ${
                     method === "magic"
                       ? "bg-blue-600 text-white hover:bg-blue-500"
                       : "border border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700"
@@ -405,8 +494,9 @@ export default function RouteWingsAuthModal({
 
                 <button
                   type="button"
+                  disabled={authBusy}
                   onClick={handleContinue}
-                  className="w-full rounded-2xl bg-blue-600 py-4 text-lg font-semibold text-white shadow-lg shadow-blue-900/30 transition hover:bg-blue-500"
+                  className="w-full rounded-2xl bg-blue-600 py-4 text-lg font-semibold text-white shadow-lg shadow-blue-900/30 transition hover:bg-blue-500 disabled:pointer-events-none disabled:opacity-45"
                 >
                   Continue to RouteWings ✈️
                 </button>

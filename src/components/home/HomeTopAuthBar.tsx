@@ -7,6 +7,10 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import RouteWingsAuthModal from "../RouteWingsAuthModal";
 import { useUpgradeModal } from "../UpgradeModalProvider";
 import {
+  createBrowserSupabaseClient,
+  isSupabaseConfigured,
+} from "../../lib/supabase/client";
+import {
   clearRouteWingsSession,
   getRouteWingsSession,
   ROUTE_WINGS_SESSION_EVENT,
@@ -56,6 +60,27 @@ export default function HomeTopAuthBar() {
   const [authOpen, setAuthOpen] = useState(false);
   const [authIntent, setAuthIntent] = useState<AuthIntent>("signup");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [oauthReturnError, setOauthReturnError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const err = params.get("rw_oauth_error");
+    if (!err) return;
+    const decoded = decodeURIComponent(err);
+    console.log("[auth] OAuth return error from URL", decoded);
+    setOauthReturnError(decoded);
+    setAuthOpen(true);
+    setAuthIntent("login");
+    const url = new URL(window.location.href);
+    url.searchParams.delete("rw_oauth_error");
+    const qs = url.searchParams.toString();
+    window.history.replaceState(
+      {},
+      "",
+      `${url.pathname}${qs ? `?${qs}` : ""}${url.hash}`
+    );
+  }, []);
 
   useEffect(() => {
     setSession(getRouteWingsSession());
@@ -103,9 +128,18 @@ export default function HomeTopAuthBar() {
     []
   );
 
-  const logout = useCallback(() => {
-    clearRouteWingsSession();
+  const logout = useCallback(async () => {
     setMenuOpen(false);
+    if (isSupabaseConfigured()) {
+      const supabase = createBrowserSupabaseClient();
+      try {
+        await supabase?.auth.signOut();
+        console.log("[auth] user signed out (Supabase)");
+      } catch (e) {
+        console.warn("[auth] Supabase signOut error", e);
+      }
+    }
+    clearRouteWingsSession();
   }, []);
 
   const loggedIn = Boolean(session);
@@ -267,9 +301,14 @@ export default function HomeTopAuthBar() {
 
       <RouteWingsAuthModal
         open={authOpen}
-        onClose={() => setAuthOpen(false)}
+        onClose={() => {
+          setAuthOpen(false);
+          setOauthReturnError(null);
+        }}
         intent={authIntent}
         onContinue={handleAuthContinue}
+        oauthReturnError={oauthReturnError}
+        onDismissOauthReturnError={() => setOauthReturnError(null)}
       />
     </>
   );
