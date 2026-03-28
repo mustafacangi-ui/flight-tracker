@@ -61,7 +61,7 @@ export default function FlightDetailActionBar({
               href={`/share/${encodeURIComponent(flightNumber)}`}
               className="rounded-xl border border-amber-500/35 bg-amber-500/10 py-2.5 text-center text-xs font-semibold text-amber-100 transition hover:bg-amber-500/15"
             >
-              Family mode
+              Share with family
             </Link>
       </div>
 
@@ -88,9 +88,9 @@ export default function FlightDetailActionBar({
           <Link
             href={`/share/${encodeURIComponent(flightNumber)}`}
             className={btnBase}
-            aria-label="Open family share view"
+            aria-label="Share flight with family"
           >
-            Family
+            Family share
           </Link>
         </div>
       </div>

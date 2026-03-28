@@ -277,6 +277,62 @@ export function buildWhatsAppFamilyMessage(
   return `${intro}\n${line2}\nTrack live: ${pageUrl}`;
 }
 
+export type FamilyRelationshipOption =
+  | "mother"
+  | "father"
+  | "wife"
+  | "husband"
+  | "child"
+  | "friend";
+
+export const FAMILY_RELATIONSHIP_CHOICES: {
+  value: FamilyRelationshipOption;
+  label: string;
+}[] = [
+  { value: "mother", label: "Mother" },
+  { value: "father", label: "Father" },
+  { value: "wife", label: "Wife" },
+  { value: "husband", label: "Husband" },
+  { value: "child", label: "Child" },
+  { value: "friend", label: "Friend" },
+];
+
+/** Warmer intro + standard flight lines + tracking URL (WhatsApp / SMS). */
+export function buildPersonalizedFamilyShareMessage(
+  d: FlightDetail,
+  pageUrl: string,
+  opts: { recipientName?: string; relationship?: FamilyRelationshipOption }
+): string {
+  const base = buildWhatsAppFamilyMessage(d, pageUrl);
+  const name = opts.recipientName?.trim();
+  const rel = opts.relationship;
+  let warm = "";
+  if (name) {
+    warm = `Hi ${name} — `;
+  }
+  let heart = "";
+  switch (rel) {
+    case "mother":
+    case "father":
+      heart =
+        "I wanted you to be able to follow my flight in real time.\n\n";
+      break;
+    case "wife":
+    case "husband":
+      heart = "Sharing my live route with you — see you soon.\n\n";
+      break;
+    case "child":
+      heart = "You can watch my flight here.\n\n";
+      break;
+    case "friend":
+      heart = "Sharing live tracking if you want to follow along.\n\n";
+      break;
+    default:
+      heart = "";
+  }
+  return `${warm}${heart}${base}`;
+}
+
 export function buildFlightStatusCopyText(
   d: FlightDetail,
   pageUrl: string

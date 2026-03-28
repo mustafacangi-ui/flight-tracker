@@ -21,10 +21,13 @@ import AirportInfoCard from "../../../components/AirportInfoCard";
 import DataProvenanceBadge from "../../../components/DataProvenanceBadge";
 import FlightDetailActionBar from "../../../components/FlightDetailActionBar";
 import PremiumBadge from "../../../components/PremiumBadge";
-import FlightDetailHeader from "../../../components/FlightDetailHeader";
+import FlightHeroDashboard from "../../../components/flight/FlightHeroDashboard";
+import FlightLiveRouteMapSection from "../../../components/flight/FlightLiveRouteMapSection";
+import FlightWalletEventTimeline from "../../../components/flight/FlightWalletEventTimeline";
 import FlightProgress from "../../../components/FlightProgress";
 import FlightTimeline from "../../../components/FlightTimeline";
 import NotificationPrefsModal from "../../../components/NotificationPrefsModal";
+import { useUpgradeModal } from "../../../components/UpgradeModalProvider";
 import { useFlightTracking } from "../../../hooks/useFlightTracking";
 import { mergeAircraftTailIntelligence } from "../../../lib/aircraftTailFallbacks";
 import { mergeFlightDetailWithFallbacks } from "../../../lib/flightDetailFallbacks";
@@ -43,6 +46,7 @@ export default function FlightDetailClient({ detail, found }: Props) {
   const [copied, setCopied] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const { isFlightTracked } = useFlightTracking();
+  const { openUpgrade } = useUpgradeModal();
 
   const flight = useMemo(
     () =>
@@ -129,11 +133,15 @@ export default function FlightDetailClient({ detail, found }: Props) {
 
   return (
     <motion.div
-      className="min-h-screen bg-gray-950 px-4 py-8 text-white sm:px-6"
+      className="relative min-h-screen overflow-x-hidden bg-[#060910] px-4 py-8 text-white sm:px-6"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
     >
+      <div
+        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_90%_60%_at_50%_-10%,rgba(37,99,235,0.14),transparent)]"
+        aria-hidden
+      />
       <FlightDetailActionBar
         flightNumber={flight.flightNumber}
         payload={detailPayload}
@@ -143,7 +151,7 @@ export default function FlightDetailClient({ detail, found }: Props) {
         tracked={tracked}
       />
 
-      <div className="mx-auto w-full max-w-6xl pb-28 lg:pb-10 lg:pr-[15rem]">
+      <div className="relative z-[1] mx-auto w-full max-w-6xl pb-28 lg:pb-10 lg:pr-[15rem]">
         <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
           <DataProvenanceBadge kind="mock" />
         </div>
@@ -157,7 +165,14 @@ export default function FlightDetailClient({ detail, found }: Props) {
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,2fr)_360px] lg:items-start">
           <div className="flex min-w-0 flex-col gap-6">
-            <FlightDetailHeader flight={flight} />
+            <FlightHeroDashboard
+              flight={flight}
+              payload={detailPayload}
+              copied={copied}
+              onShare={() => void copyLink()}
+              onOpenPrefs={() => setPrefsOpen(true)}
+              onUnlockRouteHistory={() => openUpgrade()}
+            />
 
             <motion.div
               initial={{ opacity: 0, y: 8 }}
@@ -167,7 +182,11 @@ export default function FlightDetailClient({ detail, found }: Props) {
               <FlightStatusBadges items={badges} />
             </motion.div>
 
+            <FlightLiveRouteMapSection detail={flight} />
+
             <FlightProgress detail={flight} />
+
+            <FlightWalletEventTimeline flight={flight} />
 
             {flight.stats ? (
               <motion.div

@@ -1,20 +1,18 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import SectionHeader from "../../../components/SectionHeader";
 import FamilyArrivalHelpers from "../../../components/family/FamilyArrivalHelpers";
 import FamilyFlightHeader from "../../../components/family/FamilyFlightHeader";
 import FamilyMapCard from "../../../components/family/FamilyMapCard";
 import FamilyProgressCard from "../../../components/family/FamilyProgressCard";
-import FamilyShareActions from "../../../components/family/FamilyShareActions";
+import RouteWingsFamilySharing from "../../../components/family/RouteWingsFamilySharing";
 import FamilyStatusCard from "../../../components/family/FamilyStatusCard";
 import FlightMilestones from "../../../components/family/FlightMilestones";
 import type { FlightDetail } from "../../../lib/flightDetailsTypes";
 import {
-  buildFlightStatusCopyText,
-  buildWhatsAppFamilyMessage,
   familyMilestoneCurrentIndex,
   familyMilestoneSteps,
 } from "../../../lib/familyShareView";
@@ -31,8 +29,6 @@ export default function ShareFlightClient({
   flightNumberParam,
   detail,
 }: Props) {
-  const [copied, setCopied] = useState(false);
-  const [copiedStatus, setCopiedStatus] = useState(false);
   const [familyMode, setFamilyMode] = useState(false);
   const [pageUrl, setPageUrl] = useState("");
   const [isNight, setIsNight] = useState(false);
@@ -87,44 +83,6 @@ export default function ShareFlightClient({
     detail.departureCity || detail.departureAirportName || "";
   const arrCity = detail.arrivalCity || detail.arrivalAirportName || "";
 
-  const waText = useMemo(
-    () => buildWhatsAppFamilyMessage(detail, pageUrl || "…"),
-    [detail, pageUrl]
-  );
-
-  const wa =
-    pageUrl.length > 0
-      ? `https://wa.me/?text=${encodeURIComponent(waText)}`
-      : "#";
-
-  const copyLink = useCallback(async () => {
-    const url =
-      pageUrl ||
-      `${typeof window !== "undefined" ? window.location.origin : ""}/share/${encodeURIComponent(flightNumberParam)}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2500);
-    } catch {
-      /* ignore */
-    }
-  }, [pageUrl, flightNumberParam]);
-
-  const copyStatus = useCallback(async () => {
-    const url =
-      pageUrl ||
-      `${typeof window !== "undefined" ? window.location.origin : ""}/share/${encodeURIComponent(flightNumberParam)}`;
-    try {
-      await navigator.clipboard.writeText(
-        buildFlightStatusCopyText(detail, url)
-      );
-      setCopiedStatus(true);
-      window.setTimeout(() => setCopiedStatus(false), 2500);
-    } catch {
-      /* ignore */
-    }
-  }, [detail, pageUrl, flightNumberParam]);
-
   const foot = familyMode ? "text-base" : "text-sm";
 
   return (
@@ -167,13 +125,11 @@ export default function ShareFlightClient({
 
         <FamilyArrivalHelpers detail={detail} familyMode={familyMode} />
 
-        <FamilyShareActions
+        <RouteWingsFamilySharing
+          detail={detail}
+          shareUrl={pageUrl}
+          flightNumberParam={flightNumberParam}
           familyMode={familyMode}
-          copiedLink={copied}
-          copiedStatus={copiedStatus}
-          whatsAppHref={wa}
-          onCopyLink={() => void copyLink()}
-          onCopyStatus={() => void copyStatus()}
         />
 
         <p className={`text-center text-gray-600 ${foot}`}>

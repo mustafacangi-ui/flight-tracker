@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
 import EmptyState from "./EmptyState";
+import FlightCardLiveRow from "./FlightCardLiveRow";
 import { FlightBoardSkeleton } from "./skeletons/LoadingSkeletons";
+import { displayFlightTrackContext } from "../lib/flightCardLink";
 import type { DisplayFlight } from "../lib/formatFlights";
 
 type Props = {
@@ -17,10 +19,12 @@ type Props = {
   timeZoneAbbrev: string;
   dateLine: string;
   isLive: boolean;
+  searchedAirportCode: string;
+  airportTimeZone: string;
 };
 
 const COL_GRID =
-  "grid grid-cols-[2.85rem_3.6rem_minmax(0,1.45fr)_1.85rem_2.85rem_minmax(4.25rem,1fr)] items-stretch gap-x-1 gap-y-1 px-1.5 sm:grid-cols-[3.25rem_4rem_minmax(0,1.55fr)_2.1rem_3.1rem_minmax(5rem,1fr)] sm:px-2 md:grid-cols-[4.75rem_5.75rem_minmax(0,2.35fr)_3.25rem_4.25rem_minmax(7rem,1.1fr)] md:gap-x-2 md:gap-y-2 md:px-4";
+  "grid grid-cols-[2.85rem_3.6rem_minmax(0,1.45fr)_1.85rem_2.85rem_minmax(4.25rem,1fr)_2.65rem] items-stretch gap-x-1 gap-y-1 px-1.5 sm:grid-cols-[3.25rem_4rem_minmax(0,1.55fr)_2.1rem_3.1rem_minmax(5rem,1fr)_2.75rem] sm:px-2 md:grid-cols-[4.75rem_5.75rem_minmax(0,2.35fr)_3.25rem_4.25rem_minmax(7rem,1.1fr)_3rem] md:gap-x-2 md:gap-y-2 md:px-4";
 
 const FLAP_BODY =
   "flex w-full min-w-0 items-center justify-center overflow-hidden rounded-md border border-amber-500/15 bg-black/45 px-1 py-1 text-center text-[9px] text-amber-100/95 transition-all duration-200 [transform-style:preserve-3d] md:px-3 md:py-2 md:text-sm";
@@ -130,6 +134,8 @@ export default function FlightBoard({
   timeZoneAbbrev,
   dateLine,
   isLive,
+  searchedAirportCode,
+  airportTimeZone,
 }: Props) {
   const router = useRouter();
   const boardKind =
@@ -211,6 +217,11 @@ export default function FlightBoard({
                   <FlapCell variant="header" align="right">
                     STATUS
                   </FlapCell>
+                  <div className="flex items-center justify-center">
+                    <span className="rounded-md border border-amber-500/15 bg-black/45 px-1 py-1 text-center text-[6px] font-bold uppercase tracking-[0.12em] text-amber-400/95 md:px-2 md:py-2 md:text-[9px] md:tracking-[0.2em]">
+                      Live
+                    </span>
+                  </div>
                 </div>
 
                 <div className="perspective-[1000px] px-0 pb-2 pt-1.5 md:pt-3">
@@ -226,6 +237,11 @@ export default function FlightBoard({
                       const statusCls = boardStatusClass(f.statusLabel || "");
                       const city = (f.destinationCity || "-").toUpperCase();
                       const statusText = (f.statusLabel || "UNKNOWN").toUpperCase();
+                      const trackCtx = displayFlightTrackContext(
+                        f,
+                        searchedAirportCode,
+                        airportTimeZone
+                      );
 
                       return (
                         <motion.div
@@ -241,24 +257,21 @@ export default function FlightBoard({
                             ease: [0.22, 1, 0.36, 1],
                           }}
                           whileHover={{
-                            scale: 1.01,
-                            backgroundColor: "rgba(245, 158, 11, 0.06)",
-                            boxShadow: "0 6px 20px rgba(0,0,0,0.28)",
+                            scale: 1.012,
+                            backgroundColor: "rgba(59, 130, 246, 0.08)",
+                            boxShadow:
+                              "0 8px 28px rgba(0,0,0,0.32), 0 0 24px rgba(59,130,246,0.12)",
                           }}
                           whileTap={{ scale: 0.992 }}
                           style={{ transformOrigin: "center top" }}
-                          className={`${COL_GRID} cursor-pointer rounded-lg border-b border-white/[0.06] py-1.5 font-mono text-[9px] uppercase tracking-wide text-amber-200 outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-amber-400/45 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0b] md:py-3.5 md:text-sm md:tracking-wider`}
+                          className={`${COL_GRID} cursor-pointer rounded-lg border-b border-white/[0.06] py-1.5 font-mono text-[9px] uppercase tracking-wide text-amber-200 outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-blue-400/45 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0b] md:py-3.5 md:text-sm md:tracking-wider`}
                           onClick={() => {
-                            router.push(
-                              `/flight/${encodeURIComponent(f.number)}`
-                            );
+                            router.push(trackCtx.trackHref);
                           }}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" || e.key === " ") {
                               e.preventDefault();
-                              router.push(
-                                `/flight/${encodeURIComponent(f.number)}`
-                              );
+                              router.push(trackCtx.trackHref);
                             }
                           }}
                         >
@@ -297,6 +310,16 @@ export default function FlightBoard({
                               {statusText}
                             </FlapValue>
                           </FlapCell>
+                          <div className="flex items-center justify-center py-0.5">
+                            <FlightCardLiveRow
+                              compact
+                              trackHref={trackCtx.trackHref}
+                              flightNumber={f.number}
+                              originLabel={trackCtx.originLabel}
+                              destLabel={trackCtx.destLabel}
+                              estimatedArrivalHm={trackCtx.estimatedArrivalHm}
+                            />
+                          </div>
                         </motion.div>
                       );
                     })}

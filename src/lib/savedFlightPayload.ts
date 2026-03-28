@@ -23,6 +23,10 @@ export function savedFlightPayloadFromDisplay(
     f.timeMissing || f.time === FLIGHT_TIME_MISSING ? "—" : f.time;
   const airline = f.airlineName?.trim() || "—";
   const code = searchedAirportCode.trim().toUpperCase() || "—";
+  const arrWall =
+    f.estimatedArrivalLocal?.trim() ||
+    f.scheduledArrivalLocal?.trim() ||
+    "";
 
   return {
     flightNumber: f.number,
@@ -33,6 +37,7 @@ export function savedFlightPayloadFromDisplay(
     status: f.statusLabel || "Scheduled",
     searchedAirportCode: code,
     timestamp: Date.now(),
+    ...(arrWall ? { arrivalTime: arrWall } : {}),
   };
 }
 
@@ -47,6 +52,10 @@ export function savedFlightPayloadFromDetail(d: FlightDetail): SavedFlight {
     d.departureTime?.trim() ||
     d.estimatedDepartureTime?.trim() ||
     "—";
+  const arrTime =
+    d.estimatedArrivalTime?.trim() ||
+    d.arrivalTime?.trim() ||
+    "";
   return {
     flightNumber: d.flightNumber,
     departureAirport: depName,
@@ -56,5 +65,6 @@ export function savedFlightPayloadFromDetail(d: FlightDetail): SavedFlight {
     status: d.status?.trim() || "Scheduled",
     searchedAirportCode: dep,
     timestamp: Date.now(),
+    ...(arrTime ? { arrivalTime: arrTime } : {}),
   };
 }

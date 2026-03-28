@@ -20,6 +20,10 @@ export type SavedFlight = {
   status: string;
   searchedAirportCode: string;
   timestamp: number;
+  /** Arrival wall time when known (e.g. from board/detail). */
+  arrivalTime?: string;
+  /** Saved from family share flow or explicitly tagged. */
+  familyShared?: boolean;
 };
 
 export const FAVORITE_AIRPORTS_KEY = "favoriteAirports";
@@ -77,6 +81,9 @@ function migrateLegacySaved(o: Record<string, unknown>): SavedFlight | null {
   const ts = o.timestamp;
   const timestamp =
     typeof ts === "number" && Number.isFinite(ts) ? ts : Date.now();
+  const arrivalTime =
+    typeof o.arrivalTime === "string" ? o.arrivalTime.trim() : undefined;
+  const familyShared = o.familyShared === true;
   return {
     flightNumber,
     departureAirport,
@@ -86,6 +93,8 @@ function migrateLegacySaved(o: Record<string, unknown>): SavedFlight | null {
     status,
     searchedAirportCode,
     timestamp,
+    ...(arrivalTime ? { arrivalTime } : {}),
+    ...(familyShared ? { familyShared: true } : {}),
   };
 }
 
@@ -101,6 +110,11 @@ function parseSavedFlightOne(x: unknown): SavedFlight | null {
     typeof o.departureAirport === "string" &&
     typeof o.arrivalAirport === "string"
   ) {
+    const arrivalTime =
+      typeof o.arrivalTime === "string" && o.arrivalTime.trim()
+        ? o.arrivalTime.trim()
+        : undefined;
+    const familyShared = o.familyShared === true;
     return {
       flightNumber,
       departureAirport: String(o.departureAirport).trim() || "—",
@@ -110,6 +124,8 @@ function parseSavedFlightOne(x: unknown): SavedFlight | null {
       status: String(o.status ?? "Scheduled").trim() || "Scheduled",
       searchedAirportCode: String(o.searchedAirportCode).trim() || "—",
       timestamp: o.timestamp,
+      ...(arrivalTime ? { arrivalTime } : {}),
+      ...(familyShared ? { familyShared: true } : {}),
     };
   }
 
@@ -263,19 +279,20 @@ export function upsertSavedFlight(
   const filtered = current.filter(
     (f) => f.flightNumber.trim().toUpperCase() !== upper
   );
-  const next = [
-    ...filtered,
-    {
-      flightNumber: n,
-      departureAirport: flight.departureAirport.trim() || "—",
-      arrivalAirport: flight.arrivalAirport.trim() || "—",
-      airline: flight.airline.trim() || "—",
-      scheduledTime: flight.scheduledTime.trim() || "—",
-      status: flight.status.trim() || "Scheduled",
-      searchedAirportCode: flight.searchedAirportCode.trim() || "—",
-      timestamp: flight.timestamp,
-    },
-  ];
+  const row: SavedFlight = {
+    flightNumber: n,
+    departureAirport: flight.departureAirport.trim() || "—",
+    arrivalAirport: flight.arrivalAirport.trim() || "—",
+    airline: flight.airline.trim() || "—",
+    scheduledTime: flight.scheduledTime.trim() || "—",
+    status: flight.status.trim() || "Scheduled",
+    searchedAirportCode: flight.searchedAirportCode.trim() || "—",
+    timestamp: flight.timestamp,
+  };
+  const at = flight.arrivalTime?.trim();
+  if (at) row.arrivalTime = at;
+  if (flight.familyShared) row.familyShared = true;
+  const next = [...filtered, row];
   saveSavedFlights(next);
   return next;
 }

@@ -7,6 +7,7 @@ import { useState } from "react";
 import EmptyState from "./EmptyState";
 import NotificationPrefsModal from "./NotificationPrefsModal";
 import NotificationBadge from "./NotificationBadge";
+import FlightCardLiveRow from "./FlightCardLiveRow";
 import FlightSaveBookmark from "./FlightSaveBookmark";
 import TrackFlightButton from "./TrackFlightButton";
 import { FlightCardSkeletonList } from "./skeletons/LoadingSkeletons";
@@ -16,6 +17,7 @@ import {
   MISSING_FIELD_TOOLTIP,
   type DisplayFlight,
 } from "../lib/formatFlights";
+import { displayFlightTrackContext } from "../lib/flightCardLink";
 import type { SavedFlight } from "../lib/quickAccessStorage";
 import { savedFlightPayloadFromDisplay } from "../lib/savedFlightPayload";
 import { useFlightTracking } from "../hooks/useFlightTracking";
@@ -76,7 +78,7 @@ export default function FlightList({
     "text-sm font-semibold text-gray-100 md:text-base";
 
   const cardCls =
-    "relative z-0 cursor-pointer rounded-2xl border border-white/10 bg-white/[0.03] p-4 pr-4 shadow-[0_10px_40px_rgba(0,0,0,0.35)] backdrop-blur-md transition-[border-color,background-color,box-shadow,transform] duration-300 hover:z-[1] hover:-translate-y-0.5 hover:border-blue-500/50 hover:bg-white/[0.07] hover:shadow-[0_20px_56px_rgba(59,130,246,0.14),0_0_0_1px_rgba(59,130,246,0.08)] md:rounded-3xl md:p-6 md:pr-6";
+    "relative z-0 cursor-pointer rounded-2xl border border-white/10 bg-white/[0.03] p-4 pr-4 shadow-[0_10px_40px_rgba(0,0,0,0.35)] backdrop-blur-md transition-[border-color,background-color,box-shadow,transform] duration-300 hover:z-[1] hover:-translate-y-0.5 hover:scale-[1.02] hover:border-blue-500/45 hover:bg-white/[0.07] hover:shadow-[0_20px_56px_rgba(59,130,246,0.2),0_0_32px_rgba(59,130,246,0.18)] md:rounded-3xl md:p-6 md:pr-6";
 
   const listVariants = {
     hidden: {},
@@ -97,8 +99,13 @@ export default function FlightList({
     },
   };
 
-  const goToFlight = (number: string) => {
-    router.push(`/flight/${encodeURIComponent(number)}`);
+  const goToFlightCard = (f: DisplayFlight) => {
+    const ctx = displayFlightTrackContext(
+      f,
+      searchedAirportCode,
+      airportTimeZone
+    );
+    router.push(ctx.trackHref);
   };
 
   const notificationPillForFlight = (f: DisplayFlight) => {
@@ -145,6 +152,11 @@ export default function FlightList({
         const tracked = isFlightTracked(f.number);
         const countdown = flightCountdownPillText(f, airportTimeZone);
         const notifyPill = notificationPillForFlight(f);
+        const trackCtx = displayFlightTrackContext(
+          f,
+          searchedAirportCode,
+          airportTimeZone
+        );
 
         return (
           <motion.li
@@ -157,14 +169,14 @@ export default function FlightList({
               role="button"
               tabIndex={0}
               className={cardCls}
-              whileHover={{ scale: 1.015 }}
+              whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.996 }}
               transition={{ type: "spring", stiffness: 380, damping: 26 }}
-              onClick={() => goToFlight(f.number)}
+              onClick={() => goToFlightCard(f)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  goToFlight(f.number);
+                  goToFlightCard(f);
                 }
               }}
             >
@@ -315,6 +327,15 @@ export default function FlightList({
                   </dd>
                 </div>
               </dl>
+
+              <FlightCardLiveRow
+                className="mt-4 border-t border-white/5 pt-4"
+                trackHref={trackCtx.trackHref}
+                flightNumber={f.number}
+                originLabel={trackCtx.originLabel}
+                destLabel={trackCtx.destLabel}
+                estimatedArrivalHm={trackCtx.estimatedArrivalHm}
+              />
             </motion.article>
           </motion.li>
         );

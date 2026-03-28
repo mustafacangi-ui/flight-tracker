@@ -33,6 +33,7 @@ import { recordRecentAirportSearch } from "../lib/recentSearchesStorage";
 import { runDepartureReminders } from "../lib/departureReminders";
 import { seedAlertTimelineIfEmpty } from "../lib/mockNotificationSeed";
 import { useSmartFlightTracking } from "../hooks/useSmartFlightTracking";
+import HomeTopAuthBar from "../components/home/HomeTopAuthBar";
 import HomeAviationFacts from "../components/HomeAviationFacts";
 import HomeGroupedFlightUpdates from "../components/HomeGroupedFlightUpdates";
 import HomeQuickStats from "../components/HomeQuickStats";
@@ -409,8 +410,9 @@ export default function Home() {
   }, [mode, departures, arrivals]);
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-gray-950 px-3 py-6 text-white sm:px-6 sm:py-10">
-      <div className="mx-auto flex w-full max-w-[600px] min-w-0 flex-col justify-center">
+    <div className="min-h-screen overflow-x-hidden bg-gray-950 text-white">
+      <HomeTopAuthBar />
+      <div className="mx-auto flex w-full max-w-[600px] min-w-0 flex-col justify-center px-3 py-6 sm:px-6 sm:py-10">
         <main className="flex w-full min-w-0 flex-col gap-6 md:gap-8">
           <motion.div
             id="mobile-search"
@@ -722,6 +724,10 @@ export default function Home() {
                         }
                         dateLine={boardDateLine}
                         isLive={dataIsLive}
+                        searchedAirportCode={
+                          selectedAirport?.code ?? airport
+                        }
+                        airportTimeZone={effectiveIanaTz}
                       />
                     </motion.div>
                   )}

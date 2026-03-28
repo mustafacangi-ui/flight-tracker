@@ -10,7 +10,7 @@ import {
 } from "react";
 
 import { trackEvent } from "../lib/localAnalytics";
-import UpgradeModal from "./UpgradeModal";
+import RouteWingsProUpgradeModal from "./RouteWingsProUpgradeModal";
 
 type Ctx = {
   openUpgrade: () => void;
@@ -38,7 +38,7 @@ export function UpgradeModalProvider({ children }: { children: ReactNode }) {
   return (
     <UpgradeModalContext.Provider value={value}>
       {children}
-      <UpgradeModal open={upgradeOpen} onClose={closeUpgrade} />
+      <RouteWingsProUpgradeModal open={upgradeOpen} onClose={closeUpgrade} />
     </UpgradeModalContext.Provider>
   );
 }

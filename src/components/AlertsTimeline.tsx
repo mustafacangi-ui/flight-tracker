@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
+import FlightCardLiveRow from "./FlightCardLiveRow";
 import SectionHeader from "./SectionHeader";
 import {
   groupAlertsForCenter,
@@ -12,6 +14,7 @@ import {
   alertKindRingClass,
   formatRelativeAlertTime,
 } from "../lib/alertCardVisual";
+import { alertFlightTrackContext } from "../lib/flightCardLink";
 
 function formatClock(at: number): string {
   return new Intl.DateTimeFormat(undefined, {
@@ -21,12 +24,25 @@ function formatClock(at: number): string {
 }
 
 function AlertCard({ a }: { a: AlertTimelineItem }) {
+  const router = useRouter();
   const ring = alertKindRingClass(a.kind);
   const icon = alertKindIcon(a.kind);
   const title = a.title ?? a.kind;
+  const ctx = alertFlightTrackContext(a.flightNumber, a.text);
 
   return (
-    <li className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-sm">
+    <li
+      role="button"
+      tabIndex={0}
+      onClick={() => router.push(ctx.trackHref)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          router.push(ctx.trackHref);
+        }
+      }}
+      className="cursor-pointer rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-sm transition hover:scale-[1.01] hover:border-blue-500/30 hover:shadow-[0_0_28px_rgba(59,130,246,0.12)]"
+    >
       <div className="flex gap-3">
         <div
           className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg ring-1 ${ring}`}
@@ -51,16 +67,26 @@ function AlertCard({ a }: { a: AlertTimelineItem }) {
               ))}
             </ul>
           ) : null}
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-xs text-gray-500">
               {formatClock(a.at)} · {formatRelativeAlertTime(a.at)}
             </span>
-            <Link
-              href={`/flight/${encodeURIComponent(a.flightNumber)}`}
-              className="rounded-lg border border-blue-500/35 bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-200 transition hover:bg-blue-500/20"
-            >
-              Open flight
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <FlightCardLiveRow
+                trackHref={ctx.trackHref}
+                flightNumber={a.flightNumber}
+                originLabel={ctx.originLabel}
+                destLabel={ctx.destLabel}
+                estimatedArrivalHm={ctx.estimatedArrivalHm}
+              />
+              <Link
+                href={`/flight/${encodeURIComponent(a.flightNumber)}`}
+                onClick={(e) => e.stopPropagation()}
+                className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-gray-200 transition hover:border-white/20 hover:bg-white/[0.08]"
+              >
+                Full detail
+              </Link>
+            </div>
           </div>
         </div>
       </div>

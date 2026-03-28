@@ -53,7 +53,7 @@ function deriveUiState(
   return "landed";
 }
 
-function effectiveProgressPercent(detail: FlightDetail): number {
+export function effectiveProgressPercent(detail: FlightDetail): number {
   if (detail.progressPercent != null) {
     return Math.min(100, Math.max(0, detail.progressPercent));
   }

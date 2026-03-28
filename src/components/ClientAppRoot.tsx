@@ -5,6 +5,7 @@ import AppSplashScreen from "./AppSplashScreen";
 import FeedbackFAB from "./FeedbackFAB";
 import MobileShell from "./mobile/MobileShell";
 import ServiceWorkerRegister from "./ServiceWorkerRegister";
+import RouteWingsOnboarding from "./RouteWingsOnboarding";
 import { UpgradeModalProvider } from "./UpgradeModalProvider";
 
 type Props = {
@@ -19,6 +20,7 @@ export default function ClientAppRoot({ children }: Props) {
         <UpgradeModalProvider>
           <AnalyticsProvider>
             <MobileShell>{children}</MobileShell>
+            <RouteWingsOnboarding />
             <FeedbackFAB />
           </AnalyticsProvider>
         </UpgradeModalProvider>
