@@ -33,6 +33,7 @@ import { recordRecentAirportSearch } from "../lib/recentSearchesStorage";
 import { runDepartureReminders } from "../lib/departureReminders";
 import { seedAlertTimelineIfEmpty } from "../lib/mockNotificationSeed";
 import { useSmartFlightTracking } from "../hooks/useSmartFlightTracking";
+import HomeDemoFlightCards from "../components/home/HomeDemoFlightCards";
 import HomeTopAuthBar from "../components/home/HomeTopAuthBar";
 import HomeAviationFacts from "../components/HomeAviationFacts";
 import HomeGroupedFlightUpdates from "../components/HomeGroupedFlightUpdates";
@@ -508,20 +509,23 @@ export default function Home() {
           ) : null}
 
           {showEmpty ? (
-            <EmptyState
-              icon={<span aria-hidden>✈</span>}
-              title="No flights found"
-              description="This airport returned no departures or arrivals. Try another code or search again in a few minutes."
-              action={{
-                label: "Search another airport",
-                onClick: () => {
-                  document
-                    .getElementById("mobile-search")
-                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
-                  document.getElementById("flight-code-search")?.focus();
-                },
-              }}
-            />
+            <div className="space-y-8">
+              <HomeDemoFlightCards />
+              <EmptyState
+                icon={<span aria-hidden>✈</span>}
+                title="No flights found"
+                description="This airport returned no departures or arrivals. Try another code or search again in a few minutes."
+                action={{
+                  label: "Search another airport",
+                  onClick: () => {
+                    document
+                      .getElementById("mobile-search")
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    document.getElementById("flight-code-search")?.focus();
+                  },
+                }}
+              />
+            </div>
           ) : null}
 
           {!showEmpty ? (

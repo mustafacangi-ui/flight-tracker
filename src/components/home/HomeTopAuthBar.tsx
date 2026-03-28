@@ -140,7 +140,7 @@ export default function HomeTopAuthBar() {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => openAuth("login")}
-                    className="rounded-xl border border-white/18 bg-transparent px-4 py-2 text-sm font-semibold text-gray-200 shadow-sm transition hover:border-white/28 hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/45 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950"
+                    className="rounded-xl border border-white/28 bg-black/35 px-4 py-2 text-sm font-semibold text-gray-100 shadow-inner shadow-black/30 transition hover:border-white/45 hover:bg-black/50 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/25 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950"
                   >
                     Login
                   </motion.button>
@@ -149,7 +149,7 @@ export default function HomeTopAuthBar() {
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => openAuth("signup")}
-                    className="rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-900/35 transition hover:from-blue-500 hover:to-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950"
+                    className="rounded-xl border border-blue-400/45 bg-gradient-to-r from-blue-600 via-blue-500 to-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_28px_rgba(37,99,235,0.45)] ring-1 ring-blue-400/25 transition hover:border-sky-300/55 hover:from-blue-500 hover:via-sky-500 hover:to-cyan-400 hover:shadow-[0_12px_36px_rgba(56,189,248,0.4)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/55 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950"
                   >
                     Sign Up
                   </motion.button>
