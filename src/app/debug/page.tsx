@@ -502,6 +502,14 @@ export default function DebugPage() {
           Internal diagnostics. API keys are never shown. Protect or remove this
           route for public production if needed.
         </p>
+        <p className="mt-2 text-sm">
+          <Link
+            href="/debug/release-check"
+            className="text-sky-400 underline-offset-2 hover:text-sky-300 hover:underline"
+          >
+            Release / TestFlight smoke check →
+          </Link>
+        </p>
 
         {serverErr ? (
           <p className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">

@@ -6,11 +6,14 @@ const release =
   process.env.VERCEL_GIT_COMMIT_SHA?.trim() ||
   "";
 
+const gitSha = process.env.VERCEL_GIT_COMMIT_SHA?.trim() || "";
+
 const nextConfig: NextConfig = {
-  ...(release
+  ...(release || gitSha
     ? {
         env: {
-          NEXT_PUBLIC_SENTRY_RELEASE: release,
+          ...(release ? { NEXT_PUBLIC_SENTRY_RELEASE: release } : {}),
+          ...(gitSha ? { NEXT_PUBLIC_GIT_COMMIT_SHA: gitSha } : {}),
         },
       }
     : {}),
