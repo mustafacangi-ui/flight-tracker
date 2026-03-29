@@ -1,6 +1,5 @@
 import type { AeroAirportFlight } from "../flightTypes";
-
-const RAPID_HOST = "aerodatabox.p.rapidapi.com";
+import { getRapidApiHost, rapidApiHeaders } from "./rapidApiConfig";
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -48,9 +47,8 @@ export async function getAirportFids(
   }
 
   const codeType = code.length === 4 ? "icao" : "iata";
-  const url = new URL(
-    `https://${RAPID_HOST}/flights/airports/${codeType}/${code}`
-  );
+  const host = getRapidApiHost();
+  const url = new URL(`https://${host}/flights/airports/${codeType}/${code}`);
   url.searchParams.set("offsetMinutes", "-120");
   url.searchParams.set("durationMinutes", "720");
   url.searchParams.set("withLeg", "true");
@@ -58,11 +56,7 @@ export async function getAirportFids(
   let res: Response;
   try {
     res = await fetch(url, {
-      headers: {
-        "X-RapidAPI-Key": apiKey,
-        "X-RapidAPI-Host": RAPID_HOST,
-        Accept: "application/json",
-      },
+      headers: rapidApiHeaders(apiKey),
       cache: "no-store",
     });
   } catch {

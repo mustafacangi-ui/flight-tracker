@@ -4,8 +4,7 @@ import type {
   AirportsApiResponse,
   SimplifiedAirport,
 } from "../../../lib/airportSearchTypes";
-
-const RAPID_HOST = "aerodatabox.p.rapidapi.com";
+import { getRapidApiHost, rapidApiHeaders } from "../../../lib/server/rapidApiConfig";
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -97,18 +96,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(cached.data);
   }
 
-  const url = new URL(`https://${RAPID_HOST}${UPSTREAM_PATH}`);
+  const url = new URL(`https://${getRapidApiHost()}${UPSTREAM_PATH}`);
   url.searchParams.set("q", rawQuery);
   url.searchParams.set("limit", "15");
 
   let res: Response;
   try {
     res = await fetch(url, {
-      headers: {
-        "X-RapidAPI-Key": key,
-        "X-RapidAPI-Host": RAPID_HOST,
-        Accept: "application/json",
-      },
+      headers: rapidApiHeaders(key),
       cache: "no-store",
     });
   } catch {

@@ -12,6 +12,8 @@ export async function GET() {
     nodeEnv: process.env.NODE_ENV ?? "unknown",
     vercelEnv: process.env.VERCEL_ENV ?? null,
     rapidApiKeyConfigured: Boolean(process.env.RAPIDAPI_KEY?.trim()),
+    rapidApiHost:
+      process.env.RAPIDAPI_HOST?.trim() || "aerodatabox.p.rapidapi.com",
     nextPublicSiteUrlConfigured: Boolean(siteUrl),
     nextPublicSiteUrlHost: siteUrl
       ? (() => {

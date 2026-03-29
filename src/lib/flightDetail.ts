@@ -446,7 +446,7 @@ function relativeArrLabel(arrMs: number, nowMs: number): string | undefined {
   return `Landed ${m} min ago`;
 }
 
-function delayMinutesLabel(d: FlightDetailPayload): number | null {
+export function delayMinutesLabel(d: FlightDetailPayload): number | null {
   const depS = d.departure.scheduledLocal;
   const depE = d.departure.estimatedLocal;
   if (!depS || !depE || depS === depE) return null;

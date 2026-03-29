@@ -3,8 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { AeroAirportFlight } from "../../../lib/flightTypes";
 import { mapStatus } from "../../../lib/formatFlights";
 import type { AircraftHistoryItem } from "../../../lib/flightDetail";
-
-const RAPID_HOST = "aerodatabox.p.rapidapi.com";
+import { getRapidApiHost, rapidApiHeaders } from "../../../lib/server/rapidApiConfig";
 
 function airportCode(
   a: { iata?: string | null; icao?: string | null } | null | undefined
@@ -92,9 +91,10 @@ export async function GET(request: NextRequest) {
   const fromStr = from.toISOString().slice(0, 16);
   const toStr = to.toISOString().slice(0, 16);
 
+  const host = getRapidApiHost();
   const paths = [
-    `https://${RAPID_HOST}/flights/aircraft/reg/${encodeURIComponent(reg)}/${fromStr}/${toStr}`,
-    `https://${RAPID_HOST}/flights/aircraft/reg/${encodeURIComponent(reg)}/${fromStr}Z/${toStr}Z`,
+    `https://${host}/flights/aircraft/reg/${encodeURIComponent(reg)}/${fromStr}/${toStr}`,
+    `https://${host}/flights/aircraft/reg/${encodeURIComponent(reg)}/${fromStr}Z/${toStr}Z`,
   ];
 
   let flights: AeroAirportFlight[] = [];
@@ -104,11 +104,7 @@ export async function GET(request: NextRequest) {
     let res: Response;
     try {
       res = await fetch(url, {
-        headers: {
-          "X-RapidAPI-Key": apiKey,
-          "X-RapidAPI-Host": RAPID_HOST,
-          Accept: "application/json",
-        },
+        headers: rapidApiHeaders(apiKey),
         cache: "no-store",
       });
     } catch {
