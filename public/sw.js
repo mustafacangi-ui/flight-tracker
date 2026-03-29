@@ -1,6 +1,9 @@
 const CACHE_NAME = "routewings-pwa-v2";
 
-/** Shell URLs to precache (dynamic routes like /family/[token] populate on visit). */
+/**
+ * Shell URLs to precache. `/family/[token]` and other dynamic routes are cached
+ * after the user opens them; hashed `/_next/static/*` assets cache on demand.
+ */
 const PRECACHE_URLS = [
   "/",
   "/saved",
