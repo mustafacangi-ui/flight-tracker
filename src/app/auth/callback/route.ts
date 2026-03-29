@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { getCanonicalSiteOriginForRequest } from "../../../lib/auth/getCanonicalSiteOrigin";
 import {
   captureError,
   captureMessage,
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 /**
  * Server-only (Vercel / .env.local, not NEXT_PUBLIC).
  * `DEBUG_OAUTH_SUCCESS=1` → after success redirect to `/?oauth=success` instead of `/`
- * to verify the browser follows the redirect chain.
+ * to verify the browser follows the redirect chain and client refresh.
  */
 const DEBUG_OAUTH_SUCCESS = process.env.DEBUG_OAUTH_SUCCESS === "1";
 
@@ -39,17 +40,22 @@ function summarizeResponseCookies(res: NextResponse): { name: string; valueLengt
 }
 
 export async function GET(request: NextRequest) {
+  const canonicalOrigin = getCanonicalSiteOriginForRequest(request);
   const host = request.headers.get("host");
-  console.log("[auth] callback request meta", {
+  const xfHost = request.headers.get("x-forwarded-host");
+  const xfProto = request.headers.get("x-forwarded-proto");
+  const requestOrigin = new URL(request.url).origin;
+
+  console.log("[auth] callback request origin & forwarding", {
+    requestOrigin,
+    canonicalOrigin,
     host,
-    nextUrlOrigin: request.nextUrl.origin,
-    nextUrlHref: request.nextUrl.href,
-    forwardedHost: request.headers.get("x-forwarded-host"),
-    forwardedProto: request.headers.get("x-forwarded-proto"),
+    xForwardedHost: xfHost,
+    xForwardedProto: xfProto,
   });
 
   const requestUrl = new URL(request.url);
-  const { searchParams, origin } = requestUrl;
+  const { searchParams } = requestUrl;
   const code = searchParams.get("code");
   const nextRaw = searchParams.get("next");
   const next =
@@ -60,10 +66,9 @@ export async function GET(request: NextRequest) {
   console.log("[auth] callback query", {
     hasCode: Boolean(code),
     codeLength: code?.length ?? 0,
-    hasNextParam: nextRaw != null,
+    nextParam: nextRaw,
     nextResolved: next,
     allParams: safeSearchParams(searchParams),
-    urlOrigin: origin,
   });
 
   if (!code) {
@@ -72,15 +77,25 @@ export async function GET(request: NextRequest) {
       searchParams.get("error") ||
       "Sign-in was cancelled or failed.";
     console.warn("[auth] callback without code", { desc });
+    captureMessage("OAuth callback without code (Google/Apple or cancel)", {
+      area: "oauth_callback",
+      tags: { phase: "missing_code" },
+      level: "info",
+    });
     return NextResponse.redirect(
-      `${origin}/?rw_oauth_error=${encodeURIComponent(desc)}`
+      `${canonicalOrigin}/?rw_oauth_error=${encodeURIComponent(desc)}`
     );
   }
 
-  let redirectTarget = `${origin}${next}`;
+  let redirectTarget = `${canonicalOrigin}${next}`;
   if (DEBUG_OAUTH_SUCCESS && next === "/") {
-    redirectTarget = `${origin}/?oauth=success`;
+    redirectTarget = `${canonicalOrigin}/?oauth=success`;
   }
+
+  console.log("[auth] callback redirect target (pre-exchange)", {
+    redirectTarget,
+    debugOauthSuccess: DEBUG_OAUTH_SUCCESS,
+  });
 
   const redirect = NextResponse.redirect(redirectTarget);
   const supabase = createSupabaseRouteHandlerClient(request, redirect);
@@ -92,14 +107,13 @@ export async function GET(request: NextRequest) {
       level: "error",
     });
     return NextResponse.redirect(
-      `${origin}/?rw_oauth_error=${encodeURIComponent("Server auth is not configured.")}`
+      `${canonicalOrigin}/?rw_oauth_error=${encodeURIComponent("Server auth is not configured.")}`
     );
   }
 
   console.log("[auth] callback before exchange", {
     cookiesIncoming: request.cookies.getAll().map((c) => c.name),
     redirectTargetPlanned: redirectTarget,
-    debugOauthSuccess: DEBUG_OAUTH_SUCCESS,
   });
 
   const exchangeResult = await supabase.auth.exchangeCodeForSession(code);
@@ -123,7 +137,7 @@ export async function GET(request: NextRequest) {
       },
     });
     return NextResponse.redirect(
-      `${origin}/?rw_oauth_error=${encodeURIComponent(exchangeError.message)}`
+      `${canonicalOrigin}/?rw_oauth_error=${encodeURIComponent(exchangeError.message)}`
     );
   }
 
@@ -132,10 +146,9 @@ export async function GET(request: NextRequest) {
     error: sessionReadError,
   } = await supabase.auth.getSession();
 
-  console.log("[auth] callback getSession after exchangeCodeForSession", {
+  console.log("[auth] callback getSession immediately after exchange", {
     hasSession: Boolean(session),
     userId: session?.user?.id ?? null,
-    email: session?.user?.email ?? null,
     err: sessionReadError?.message ?? null,
   });
 
@@ -147,6 +160,7 @@ export async function GET(request: NextRequest) {
     finalUrl: redirectTarget,
     next,
     debugOauthSuccess: DEBUG_OAUTH_SUCCESS,
+    canonicalOrigin,
   });
 
   return redirect;

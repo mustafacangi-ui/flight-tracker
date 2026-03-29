@@ -1,9 +1,12 @@
 "use client";
 
+import { Suspense } from "react";
+
 import AnalyticsProvider from "./AnalyticsProvider";
 import AppSplashScreen from "./AppSplashScreen";
 import CapacitorNativeBridge from "./CapacitorNativeBridge";
 import MonitoringContextSync from "./MonitoringContextSync";
+import OAuthReturnHandler from "./OAuthReturnHandler";
 import FeedbackFAB from "./FeedbackFAB";
 import MobileShell from "./mobile/MobileShell";
 import PwaInstallCoordinator from "./pwa/PwaInstallCoordinator";
@@ -30,6 +33,9 @@ export default function ClientAppRoot({ children }: Props) {
             <MonitoringContextSync />
             <StoreOnboardingGate />
             <SupabaseAuthListener />
+            <Suspense fallback={null}>
+              <OAuthReturnHandler />
+            </Suspense>
             <MobileShell>{children}</MobileShell>
             <PushPromotionHost />
             <RouteWingsOnboarding />

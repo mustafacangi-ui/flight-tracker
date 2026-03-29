@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import {
@@ -24,6 +25,8 @@ import { applySupabaseUserToRouteWingsSession } from "../lib/syncSupabaseRouteWi
  * Does not clear email-only (non-Supabase) sessions when no Supabase session exists.
  */
 export default function SupabaseAuthListener() {
+  const router = useRouter();
+
   useEffect(() => {
     if (!isSupabaseConfigured()) {
       console.log("[auth] SupabaseAuthListener: env not configured, skipping");
@@ -33,24 +36,35 @@ export default function SupabaseAuthListener() {
     const supabase = createBrowserSupabaseClient();
     if (!supabase) return;
 
-    void supabase.auth.getSession().then(({ data: { session }, error }) => {
-      console.log("[auth] getSession (mount)", {
-        hasSession: Boolean(session),
-        email: session?.user?.email,
-        err: error?.message,
-      });
-      if (session?.user) {
-        applySupabaseUserToRouteWingsSession(session.user);
-        if (userHasPremiumSubscription(session.user)) {
-          try {
-            localStorage.setItem(STORAGE_TIER_KEY, "premium");
-            dispatchPremiumTierUpdated();
-          } catch {
-            /* ignore */
+    const syncFromSession = () => {
+      void supabase.auth.getSession().then(({ data: { session }, error }) => {
+        console.log("[auth] getSession (sync)", {
+          hasSession: Boolean(session),
+          err: error?.message,
+        });
+        if (session?.user) {
+          applySupabaseUserToRouteWingsSession(session.user);
+          if (userHasPremiumSubscription(session.user)) {
+            try {
+              localStorage.setItem(STORAGE_TIER_KEY, "premium");
+              dispatchPremiumTierUpdated();
+            } catch {
+              /* ignore */
+            }
           }
         }
-      }
-    });
+        router.refresh();
+      });
+    };
+
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      console.log("[auth] visibilitychange → refresh session + router");
+      syncFromSession();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    syncFromSession();
 
     const {
       data: { subscription },
@@ -58,6 +72,9 @@ export default function SupabaseAuthListener() {
       console.log("[auth] onAuthStateChange", event, {
         email: session?.user?.email,
       });
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        router.refresh();
+      }
       if (event === "SIGNED_IN" && session?.user) {
         const identities = session.user.identities ?? [];
         const provider =
@@ -86,8 +103,11 @@ export default function SupabaseAuthListener() {
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      subscription.unsubscribe();
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [router]);
 
   return null;
 }

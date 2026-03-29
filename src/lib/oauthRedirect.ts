@@ -6,27 +6,24 @@
  *
  * Apple Developer “Return URLs” / Services ID must match the same callback URL.
  *
- * `NEXT_PUBLIC_SITE_URL` (optional): canonical site origin. Used for callback
- * only when its hostname matches the current page (after stripping `www.`), so
- * a stale `http://localhost:3000` in production cannot send users to localhost.
+ * `NEXT_PUBLIC_SITE_URL` (optional): used for non–fiyatrotasi deployments when
+ * hostname matches the configured origin.
  */
 
-const PRODUCTION_CALLBACK_ORIGIN = "https://www.fiyatrotasi.com";
-
-function normalizeHost(hostname: string): string {
-  return hostname.replace(/^www\./i, "").toLowerCase();
-}
-
-function hostsMatch(a: string, b: string): boolean {
-  return normalizeHost(a) === normalizeHost(b);
-}
+import {
+  getCanonicalOriginClient,
+  getOAuthCallbackUrlClient,
+  isFiyatrotasiProductionHost,
+  isLocalDevHost,
+  normalizeHost,
+} from "./auth/getCanonicalSiteOrigin";
 
 function tryCallbackFromSiteUrl(hostname: string): string | null {
   const raw = process.env.NEXT_PUBLIC_SITE_URL?.trim();
   if (!raw) return null;
   try {
     const u = new URL(raw);
-    if (!hostsMatch(u.hostname, hostname)) return null;
+    if (normalizeHost(u.hostname) !== normalizeHost(hostname)) return null;
     const base = u.origin.replace(/\/$/, "");
     return `${base}/auth/callback`;
   } catch {
@@ -47,12 +44,12 @@ export function getOAuthRedirectToClient(): string {
   let redirectTo: string;
   let reason: string;
 
-  if (hostname === "localhost" || hostname === "127.0.0.1") {
+  if (isLocalDevHost(hostname)) {
     redirectTo = `${origin}/auth/callback`;
     reason = "localhost / 127.0.0.1 → window.origin";
-  } else if (hostname === "fiyatrotasi.com" || hostname === "www.fiyatrotasi.com") {
-    redirectTo = `${PRODUCTION_CALLBACK_ORIGIN}/auth/callback`;
-    reason = "fiyatrotasi.com → canonical www HTTPS";
+  } else if (isFiyatrotasiProductionHost(hostname)) {
+    redirectTo = getOAuthCallbackUrlClient();
+    reason = "fiyatrotasi → canonical www HTTPS callback";
   } else if (fromSiteUrl) {
     redirectTo = fromSiteUrl;
     reason = "NEXT_PUBLIC_SITE_URL hostname matches current host";
@@ -65,6 +62,8 @@ export function getOAuthRedirectToClient(): string {
     redirectTo,
     reason,
     window: { href, hostname, origin },
+    canonicalClient: getCanonicalOriginClient(),
+    oauthCallbackUrl: getOAuthCallbackUrlClient(),
     NEXT_PUBLIC_SITE_URL: siteUrlEnv,
     siteUrlUsed: Boolean(fromSiteUrl),
   });

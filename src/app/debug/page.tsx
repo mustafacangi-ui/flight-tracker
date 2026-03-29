@@ -22,6 +22,7 @@ import {
 import { RECENT_FLIGHTS_KEY } from "../../lib/recentFlightsStorage";
 import { RECENT_SEARCHES_STORAGE_KEY } from "../../lib/recentSearchesStorage";
 import { isStandaloneDisplayMode } from "../../hooks/useInstallPrompt";
+import DebugOAuthPanel from "../../components/debug/DebugOAuthPanel";
 
 type QaStatus = "ok" | "partial" | "issue";
 
@@ -527,6 +528,8 @@ export default function DebugPage() {
             {probing ? "Running checks…" : "Re-run all checks"}
           </button>
         </div>
+
+        <DebugOAuthPanel />
 
         {/* 1. API Status */}
         <Section title="1. API status">
