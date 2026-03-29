@@ -4,7 +4,46 @@ import { createSupabaseRouteHandlerClient } from "../../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Server-only (Vercel / .env.local, not NEXT_PUBLIC).
+ * `DEBUG_OAUTH_SUCCESS=1` → after success redirect to `/?oauth=success` instead of `/`
+ * to verify the browser follows the redirect chain.
+ */
+const DEBUG_OAUTH_SUCCESS = process.env.DEBUG_OAUTH_SUCCESS === "1";
+
+function safeSearchParams(searchParams: URLSearchParams): Record<string, string> {
+  const out: Record<string, string> = {};
+  searchParams.forEach((value, key) => {
+    if (key === "code") {
+      out[key] = value ? `[redacted ${value.length} chars]` : "";
+      return;
+    }
+    out[key] = value;
+  });
+  return out;
+}
+
+function summarizeResponseCookies(res: NextResponse): { name: string; valueLength: number }[] {
+  try {
+    return res.cookies.getAll().map((c) => ({
+      name: c.name,
+      valueLength: c.value?.length ?? 0,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export async function GET(request: NextRequest) {
+  const host = request.headers.get("host");
+  console.log("[auth] callback request meta", {
+    host,
+    nextUrlOrigin: request.nextUrl.origin,
+    nextUrlHref: request.nextUrl.href,
+    forwardedHost: request.headers.get("x-forwarded-host"),
+    forwardedProto: request.headers.get("x-forwarded-proto"),
+  });
+
   const requestUrl = new URL(request.url);
   const { searchParams, origin } = requestUrl;
   const code = searchParams.get("code");
@@ -14,10 +53,13 @@ export async function GET(request: NextRequest) {
       ? nextRaw
       : "/";
 
-  console.log("[auth] /auth/callback", {
-    origin,
+  console.log("[auth] callback query", {
     hasCode: Boolean(code),
-    next,
+    codeLength: code?.length ?? 0,
+    hasNextParam: nextRaw != null,
+    nextResolved: next,
+    allParams: safeSearchParams(searchParams),
+    urlOrigin: origin,
   });
 
   if (!code) {
@@ -25,13 +67,18 @@ export async function GET(request: NextRequest) {
       searchParams.get("error_description") ||
       searchParams.get("error") ||
       "Sign-in was cancelled or failed.";
-    console.warn("[auth] callback without code", desc);
+    console.warn("[auth] callback without code", { desc });
     return NextResponse.redirect(
       `${origin}/?rw_oauth_error=${encodeURIComponent(desc)}`
     );
   }
 
-  const redirect = NextResponse.redirect(`${origin}${next}`);
+  let redirectTarget = `${origin}${next}`;
+  if (DEBUG_OAUTH_SUCCESS && next === "/") {
+    redirectTarget = `${origin}/?oauth=success`;
+  }
+
+  const redirect = NextResponse.redirect(redirectTarget);
   const supabase = createSupabaseRouteHandlerClient(request, redirect);
   if (!supabase) {
     console.error("[auth] Supabase env missing on callback route");
@@ -40,11 +87,27 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
-  if (error) {
-    console.error("[auth] exchangeCodeForSession", error.message);
+  console.log("[auth] callback before exchange", {
+    cookiesIncoming: request.cookies.getAll().map((c) => c.name),
+    redirectTargetPlanned: redirectTarget,
+    debugOauthSuccess: DEBUG_OAUTH_SUCCESS,
+  });
+
+  const exchangeResult = await supabase.auth.exchangeCodeForSession(code);
+  const { error: exchangeError, data: exchangeData } = exchangeResult;
+
+  console.log("[auth] exchangeCodeForSession result", {
+    ok: !exchangeError,
+    errorMessage: exchangeError?.message ?? null,
+    errorStatus: (exchangeError as { status?: number } | null)?.status ?? null,
+    hasSessionInData: Boolean(exchangeData?.session),
+    userId: exchangeData?.session?.user?.id ?? null,
+  });
+
+  if (exchangeError) {
+    console.error("[auth] exchangeCodeForSession failed", exchangeError.message);
     return NextResponse.redirect(
-      `${origin}/?rw_oauth_error=${encodeURIComponent(error.message)}`
+      `${origin}/?rw_oauth_error=${encodeURIComponent(exchangeError.message)}`
     );
   }
 
@@ -52,6 +115,7 @@ export async function GET(request: NextRequest) {
     data: { session },
     error: sessionReadError,
   } = await supabase.auth.getSession();
+
   console.log("[auth] callback getSession after exchangeCodeForSession", {
     hasSession: Boolean(session),
     userId: session?.user?.id ?? null,
@@ -59,7 +123,15 @@ export async function GET(request: NextRequest) {
     err: sessionReadError?.message ?? null,
   });
 
-  const finalUrl = `${origin}${next}`;
-  console.log("[auth] OAuth exchange OK → redirect", { finalUrl, next });
+  const cookiesOutgoing = summarizeResponseCookies(redirect);
+  console.log("[auth] response cookies after exchange (names + value lengths)", cookiesOutgoing);
+  console.log("[auth] Set-Cookie count on redirect", cookiesOutgoing.length);
+
+  console.log("[auth] OAuth exchange OK → final redirect", {
+    finalUrl: redirectTarget,
+    next,
+    debugOauthSuccess: DEBUG_OAUTH_SUCCESS,
+  });
+
   return redirect;
 }
