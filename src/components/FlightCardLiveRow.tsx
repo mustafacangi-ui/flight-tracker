@@ -8,6 +8,7 @@ import { usePremiumFlag } from "../hooks/usePremiumFlag";
 import {
   absoluteFlightCardUrl,
   familyShareWhatsAppUrl,
+  liveTrackPath,
   type FlightCardSharePayload,
 } from "../lib/flightCardLink";
 
@@ -85,7 +86,7 @@ export default function FlightCardLiveRow({
       openUpgrade();
       return;
     }
-    router.push(trackHref);
+    router.push(liveTrackPath(flightNumber));
   };
 
   if (compact) {

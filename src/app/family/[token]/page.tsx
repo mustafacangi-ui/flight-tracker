@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 
 import FamilyAirportCard from "../../../components/family/FamilyAirportCard";
 import FamilyHeaderCard from "../../../components/family/FamilyHeaderCard";
-import FamilyMapCard from "../../../components/family/FamilyMapCard";
+import FamilyLiveMapSection from "../../../components/family/FamilyLiveMapSection";
 import FamilyShareCard from "../../../components/family/FamilyShareCard";
 import FamilyStatusCard from "../../../components/family/FamilyStatusCard";
 import { mergeAircraftTailIntelligence } from "../../../lib/aircraftTailFallbacks";
@@ -108,7 +108,6 @@ export default async function FamilyTrackingPage({
   const arrCode = detail.arrivalAirportCode ?? "—";
   const hour = new Date().getHours();
   const isNight = hour >= 20 || hour < 6;
-  const pct = Math.min(100, Math.max(0, detail.progressPercent ?? 0));
 
   return (
     <div className="min-h-screen bg-[#05060a] text-white">
@@ -125,11 +124,10 @@ export default async function FamilyTrackingPage({
           <FamilyHeaderCard flight={detail} />
           <FamilyStatusCard variant="live" detail={detail} />
           <FamilyAirportCard flight={detail} />
-          <FamilyMapCard
+          <FamilyLiveMapSection
+            detail={detail}
             departureCity={depCity}
             arrivalCity={arrCity}
-            progressPercent={pct}
-            familyMode
             isNight={isNight}
           />
           <FamilyShareCard

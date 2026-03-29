@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
 
 @theme inline {
   --font-sans: var(--font-geist-sans);
@@ -8,6 +9,43 @@
 /* Base typography; background comes from layout (bg-gray-950). */
 body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+.leaflet-container {
+  font-family: inherit;
+  background: #0b1220;
+}
+
+.live-plane-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+.live-plane-inner {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 2px solid rgba(125, 211, 252, 0.95);
+  box-shadow:
+    0 0 22px rgba(56, 189, 248, 0.65),
+    0 0 40px rgba(37, 99, 235, 0.35);
+  font-size: 18px;
+  line-height: 1;
+  animation: live-plane-float 2.8s ease-in-out infinite;
+}
+
+@keyframes live-plane-float {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-4px) scale(1.05);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

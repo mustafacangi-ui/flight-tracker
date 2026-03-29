@@ -2,6 +2,12 @@ import { DISPLAY_DASH } from "./displayConstants";
 import type { DisplayFlight } from "./formatFlights";
 import type { SavedFlight } from "./quickAccessStorage";
 
+/** In-app live map route (premium). */
+export function liveTrackPath(flightNumberRaw: string): string {
+  const fn = flightNumberRaw.replace(/\s+/g, "").trim().toUpperCase();
+  return `/live/${encodeURIComponent(fn)}`;
+}
+
 /** Path + query for the premium static flight card (served from /public). */
 export function flightCardHref(
   flightNumber: string,
