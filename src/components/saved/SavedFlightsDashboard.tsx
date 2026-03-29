@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import EnablePushNotificationsCard from "../EnablePushNotificationsCard";
 import FlightCardLiveRow from "../FlightCardLiveRow";
 import FlightNotificationToggle from "../FlightNotificationToggle";
 import { useQuickAccess } from "../../hooks/useQuickAccess";
-import { isPremiumUser } from "../../lib/premiumTier";
+import { usePremiumFlag } from "../../hooks/usePremiumFlag";
+import { FREE_TIER } from "../../lib/premiumTier";
 import type { SavedFlight } from "../../lib/quickAccessStorage";
 import {
   removeSavedFlight,
@@ -262,10 +263,7 @@ export default function SavedFlightsDashboard() {
   const { openUpgrade } = useUpgradeModal();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterId>("all");
-  const [premium, setPremium] = useState(false);
-  useEffect(() => {
-    setPremium(isPremiumUser());
-  }, []);
+  const premium = usePremiumFlag();
 
   const shareBase =
     typeof window !== "undefined" ? window.location.origin : "";
@@ -337,10 +335,11 @@ export default function SavedFlightsDashboard() {
                 RouteWings Pro
               </p>
               <p className="mt-1 text-base font-semibold text-white">
-                Unlimited saved flights with RouteWings Pro
+                Free plan: up to {FREE_TIER.maxSavedFlights} saved flights
               </p>
               <p className="mt-1 text-sm text-slate-400">
-                Save every leg, sync family sharing, and unlock premium tools.
+                Upgrade for unlimited saves, private family links, live map, and
+                full push alerts.
               </p>
             </div>
             <button

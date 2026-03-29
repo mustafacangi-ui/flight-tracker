@@ -6,6 +6,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import RouteWingsAuthModal from "../RouteWingsAuthModal";
 import { useUpgradeModal } from "../UpgradeModalProvider";
+import { usePremiumFlag } from "../../hooks/usePremiumFlag";
 import {
   createBrowserSupabaseClient,
   isSupabaseConfigured,
@@ -55,6 +56,7 @@ function ProfileIcon({ className = "" }: { className?: string }) {
 export default function HomeTopAuthBar() {
   const menuId = useId();
   const { openUpgrade } = useUpgradeModal();
+  const premium = usePremiumFlag();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [session, setSession] = useState<RouteWingsSession | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
@@ -232,10 +234,20 @@ export default function HomeTopAuthBar() {
                       className="absolute right-0 top-[calc(100%+0.5rem)] z-[60] w-[min(calc(100vw-2rem),16rem)] origin-top-right rounded-2xl border border-white/10 bg-gray-950/95 py-2 shadow-[0_16px_48px_rgba(0,0,0,0.55)] backdrop-blur-xl"
                     >
                       <p className="border-b border-white/10 px-4 py-2 text-xs text-gray-500">
-                        <span className="block truncate font-medium text-gray-300">
-                          {session!.displayName || session!.email.split("@")[0]}
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="block truncate font-medium text-gray-300">
+                            {session!.displayName ||
+                              session!.email.split("@")[0]}
+                          </span>
+                          {premium ? (
+                            <span className="shrink-0 rounded-full border border-amber-500/40 bg-gradient-to-r from-amber-500/20 to-blue-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-100/95">
+                              Premium
+                            </span>
+                          ) : null}
                         </span>
-                        <span className="block truncate">{session!.email}</span>
+                        <span className="mt-0.5 block truncate">
+                          {session!.email}
+                        </span>
                       </p>
                       <nav className="py-1">
                         <Link
@@ -270,6 +282,14 @@ export default function HomeTopAuthBar() {
                         >
                           Family Sharing
                         </Link>
+                        <Link
+                          href="/premium"
+                          role="menuitem"
+                          onClick={() => setMenuOpen(false)}
+                          className="block px-4 py-2.5 text-sm font-medium text-sky-300/95 transition hover:bg-sky-500/10 hover:text-sky-200"
+                        >
+                          Premium plans
+                        </Link>
                         <button
                           type="button"
                           role="menuitem"
@@ -279,7 +299,7 @@ export default function HomeTopAuthBar() {
                           }}
                           className="w-full px-4 py-2.5 text-left text-sm font-medium text-blue-300 transition hover:bg-blue-500/10 hover:text-blue-200"
                         >
-                          Upgrade to Pro
+                          {premium ? "Manage upgrade" : "Upgrade to Premium"}
                         </button>
                         <button
                           type="button"

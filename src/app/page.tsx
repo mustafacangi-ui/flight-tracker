@@ -35,6 +35,7 @@ import { seedAlertTimelineIfEmpty } from "../lib/mockNotificationSeed";
 import { useSmartFlightTracking } from "../hooks/useSmartFlightTracking";
 import HomeDemoFlightCards from "../components/home/HomeDemoFlightCards";
 import HomeTopAuthBar from "../components/home/HomeTopAuthBar";
+import PremiumUnlockCard from "../components/PremiumUnlockCard";
 import HomeAviationFacts from "../components/HomeAviationFacts";
 import HomeGroupedFlightUpdates from "../components/HomeGroupedFlightUpdates";
 import HomeQuickStats from "../components/HomeQuickStats";
@@ -42,6 +43,7 @@ import HomeStickyAlertsPreview from "../components/HomeStickyAlertsPreview";
 import EmptyState from "../components/EmptyState";
 import ErrorState from "../components/ErrorState";
 import { writeDebugSessionFidsCache } from "../lib/debugFlightSessionCache";
+import { usePremiumFlag } from "../hooks/usePremiumFlag";
 
 const REFRESH_MS = 5 * 60 * 1000;
 
@@ -60,6 +62,7 @@ type FlightsCacheEntry = {
 };
 
 export default function Home() {
+  const premiumUser = usePremiumFlag();
   const [departures, setDepartures] = useState<DisplayFlight[]>([]);
   const [arrivals, setArrivals] = useState<DisplayFlight[]>([]);
   const [mode, setMode] = useState<"departure" | "arrival">("departure");
@@ -449,6 +452,8 @@ export default function Home() {
             flightsToday={flightsTodayTotal}
             hasSearched={hasSearched}
           />
+
+          {!premiumUser ? <PremiumUnlockCard /> : null}
 
           <HomeStickyAlertsPreview />
 

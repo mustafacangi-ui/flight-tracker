@@ -7,6 +7,11 @@ import {
   isSupabaseConfigured,
 } from "../lib/supabase/client";
 import { clearRouteWingsSession } from "../lib/routeWingsSessionStorage";
+import {
+  PREMIUM_TIER_UPDATED_EVENT,
+  STORAGE_TIER_KEY,
+} from "../lib/premiumTier";
+import { userHasPremiumSubscription } from "../lib/premiumUserMeta";
 import { applySupabaseUserToRouteWingsSession } from "../lib/syncSupabaseRouteWingsSession";
 
 /**
@@ -42,6 +47,14 @@ export default function SupabaseAuthListener() {
       });
       if (session?.user) {
         applySupabaseUserToRouteWingsSession(session.user);
+        if (userHasPremiumSubscription(session.user)) {
+          try {
+            localStorage.setItem(STORAGE_TIER_KEY, "premium");
+            window.dispatchEvent(new Event(PREMIUM_TIER_UPDATED_EVENT));
+          } catch {
+            /* ignore */
+          }
+        }
         return;
       }
       if (event === "SIGNED_OUT") {

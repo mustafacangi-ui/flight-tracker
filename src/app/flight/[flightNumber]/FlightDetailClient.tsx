@@ -23,11 +23,13 @@ import FlightDetailActionBar from "../../../components/FlightDetailActionBar";
 import PremiumBadge from "../../../components/PremiumBadge";
 import FlightHeroDashboard from "../../../components/flight/FlightHeroDashboard";
 import FlightLiveRouteMapSection from "../../../components/flight/FlightLiveRouteMapSection";
+import PremiumLiveMapTeaser from "../../../components/flight/PremiumLiveMapTeaser";
 import FlightWalletEventTimeline from "../../../components/flight/FlightWalletEventTimeline";
 import FlightProgress from "../../../components/FlightProgress";
 import FlightTimeline from "../../../components/FlightTimeline";
 import NotificationPrefsModal from "../../../components/NotificationPrefsModal";
 import { useUpgradeModal } from "../../../components/UpgradeModalProvider";
+import { usePremiumFlag } from "../../../hooks/usePremiumFlag";
 import { useFlightTracking } from "../../../hooks/useFlightTracking";
 import { mergeAircraftTailIntelligence } from "../../../lib/aircraftTailFallbacks";
 import { mergeFlightDetailWithFallbacks } from "../../../lib/flightDetailFallbacks";
@@ -47,6 +49,7 @@ export default function FlightDetailClient({ detail, found }: Props) {
   const [prefsOpen, setPrefsOpen] = useState(false);
   const { isFlightTracked } = useFlightTracking();
   const { openUpgrade } = useUpgradeModal();
+  const mapPremium = usePremiumFlag();
 
   const flight = useMemo(
     () =>
@@ -182,7 +185,11 @@ export default function FlightDetailClient({ detail, found }: Props) {
               <FlightStatusBadges items={badges} />
             </motion.div>
 
-            <FlightLiveRouteMapSection detail={flight} />
+            {mapPremium ? (
+              <FlightLiveRouteMapSection detail={flight} />
+            ) : (
+              <PremiumLiveMapTeaser onUnlock={() => openUpgrade()} />
+            )}
 
             <FlightProgress detail={flight} />
 

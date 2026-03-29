@@ -2,7 +2,9 @@
 
 import { useCallback, useState } from "react";
 
+import { useUpgradeModal } from "../UpgradeModalProvider";
 import { flightRadar24Url } from "../../lib/externalFlightLinks";
+import { usePremiumFlag } from "../../hooks/usePremiumFlag";
 
 function glassCard(className = ""): string {
   return `rounded-3xl border border-white/10 bg-white/[0.03] shadow-[0_10px_40px_rgba(0,0,0,0.35)] backdrop-blur-md ${className}`;
@@ -82,9 +84,15 @@ export default function FlightShareSection({
   onCopyLink,
 }: Props) {
   const [familyCopied, setFamilyCopied] = useState(false);
+  const { openUpgrade } = useUpgradeModal();
+  const premium = usePremiumFlag();
   const trackUrl = flightRadar24Url(flightNumber);
 
   const copyFamilyLink = useCallback(async () => {
+    if (!premium) {
+      openUpgrade();
+      return;
+    }
     try {
       const res = await fetch("/api/family/links", {
         method: "POST",
@@ -92,6 +100,10 @@ export default function FlightShareSection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ flightNumber }),
       });
+      if (res.status === 403) {
+        openUpgrade();
+        return;
+      }
       if (res.ok) {
         const body = (await res.json()) as { shareUrl?: string };
         if (body.shareUrl) {
@@ -124,8 +136,9 @@ export default function FlightShareSection({
         Share & tracking
       </h2>
       <p className="mt-3 text-sm text-gray-400">
-        Copy this page, send a family-friendly link, or open live tracking on
-        Flightradar24.
+        Copy this page, send a{" "}
+        <span className="text-sky-200/90">private family tracking link</span>{" "}
+        (Premium), or open live tracking on Flightradar24.
       </p>
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
         <button type="button" onClick={onCopyLink} className={btn}>

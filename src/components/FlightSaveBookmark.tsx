@@ -2,8 +2,10 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { useSavedFlights } from "../hooks/useSavedFlights";
+import { useUpgradeModal } from "./UpgradeModalProvider";
 import { trackEvent } from "../lib/localAnalytics";
 import { dispatchFlightSavedEvent } from "../lib/pushEvents";
+import { canAddSavedFlight } from "../lib/premiumTier";
 import {
   isFlightSaved,
   type SavedFlight,
@@ -35,6 +37,7 @@ function BookmarkIcon({ filled }: { filled: boolean }) {
 
 export default function FlightSaveBookmark({ payload, className = "" }: Props) {
   const { savedFlights, toggle } = useSavedFlights();
+  const { openUpgrade } = useUpgradeModal();
   const saved = isFlightSaved(payload.flightNumber, savedFlights);
 
   return (
@@ -44,8 +47,18 @@ export default function FlightSaveBookmark({ payload, className = "" }: Props) {
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        const { saved } = toggle({ ...payload, timestamp: Date.now() });
-        if (saved) {
+        if (
+          !saved &&
+          !canAddSavedFlight(savedFlights.length, false)
+        ) {
+          openUpgrade();
+          return;
+        }
+        const { saved: nowSaved } = toggle({
+          ...payload,
+          timestamp: Date.now(),
+        });
+        if (nowSaved) {
           trackEvent("save_flight", { flightNumber: payload.flightNumber });
           dispatchFlightSavedEvent();
         }

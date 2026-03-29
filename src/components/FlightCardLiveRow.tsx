@@ -1,8 +1,10 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 
+import { useUpgradeModal } from "./UpgradeModalProvider";
+import { usePremiumFlag } from "../hooks/usePremiumFlag";
 import {
   absoluteFlightCardUrl,
   familyShareWhatsAppUrl,
@@ -46,6 +48,10 @@ export default function FlightCardLiveRow({
   compact = false,
   className = "",
 }: Props) {
+  const router = useRouter();
+  const premium = usePremiumFlag();
+  const { openUpgrade } = useUpgradeModal();
+
   const openFamilyShare = useCallback(() => {
     if (typeof window === "undefined") return;
     const cardAbsoluteUrl = absoluteFlightCardUrl(
@@ -73,6 +79,15 @@ export default function FlightCardLiveRow({
     e.stopPropagation();
   };
 
+  const goLiveTrack = (e: React.MouseEvent) => {
+    stop(e);
+    if (!premium) {
+      openUpgrade();
+      return;
+    }
+    router.push(trackHref);
+  };
+
   if (compact) {
     return (
       <div
@@ -93,15 +108,15 @@ export default function FlightCardLiveRow({
             💬
           </span>
         </button>
-        <Link
-          href={trackHref}
-          onClick={stop}
+        <button
+          type="button"
+          onClick={goLiveTrack}
           className="flex h-8 w-8 items-center justify-center rounded-lg border border-blue-500/40 bg-gradient-to-br from-blue-600/90 to-sky-500/85 text-white shadow-[0_0_16px_rgba(37,99,235,0.35)] transition hover:border-blue-400/60 hover:shadow-[0_0_20px_rgba(56,189,248,0.45)]"
           aria-label="Live track"
           title="Live track"
         >
           <PlaneIcon className="h-3.5 w-3.5" />
-        </Link>
+        </button>
       </div>
     );
   }
@@ -121,14 +136,14 @@ export default function FlightCardLiveRow({
       >
         Share with Family
       </button>
-      <Link
-        href={trackHref}
-        onClick={stop}
+      <button
+        type="button"
+        onClick={goLiveTrack}
         className="inline-flex items-center gap-1.5 rounded-xl border border-blue-500/40 bg-gradient-to-r from-blue-600 to-sky-500 px-3 py-2 text-[11px] font-bold text-white shadow-[0_0_20px_rgba(37,99,235,0.35)] transition hover:border-blue-300/50 hover:shadow-[0_0_26px_rgba(56,189,248,0.45)] md:text-xs"
       >
         <PlaneIcon className="h-3.5 w-3.5 shrink-0" />
         Live Track
-      </Link>
+      </button>
     </div>
   );
 }

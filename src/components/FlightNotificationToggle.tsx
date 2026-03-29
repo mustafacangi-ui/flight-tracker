@@ -3,11 +3,14 @@
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
 
+import { useUpgradeModal } from "./UpgradeModalProvider";
 import {
   createBrowserSupabaseClient,
   isSupabaseConfigured,
 } from "../lib/supabase/client";
 import type { SavedFlight } from "../lib/quickAccessStorage";
+import { FREE_TIER, isPremiumUser } from "../lib/premiumTier";
+import { userHasPremiumSubscription } from "../lib/premiumUserMeta";
 
 type Props = {
   flight: SavedFlight;
@@ -16,6 +19,7 @@ type Props = {
 
 export default function FlightNotificationToggle({ flight, className = "" }: Props) {
   const fn = flight.flightNumber.trim().toUpperCase();
+  const { openUpgrade } = useUpgradeModal();
   const [tracked, setTracked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -75,6 +79,19 @@ export default function FlightNotificationToggle({ flight, className = "" }: Pro
           .eq("flight_number", fn);
         setTracked(false);
       } else {
+        const premiumOk =
+          isPremiumUser() || userHasPremiumSubscription(user);
+        if (!premiumOk) {
+          const { count, error: cErr } = await supabase
+            .from("tracked_flights")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id);
+          if (cErr) throw cErr;
+          if ((count ?? 0) >= FREE_TIER.maxTrackedFlights) {
+            openUpgrade();
+            return;
+          }
+        }
         const { error } = await supabase.from("tracked_flights").insert({
           user_id: user.id,
           flight_number: fn,

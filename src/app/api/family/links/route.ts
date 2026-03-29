@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { normalizeFlightNumberKey } from "../../../../lib/flightDetail";
+import { userHasPremiumSubscription } from "../../../../lib/premiumUserMeta";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,16 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (authError || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!userHasPremiumSubscription(user)) {
+    return NextResponse.json(
+      {
+        error: "Premium required for private family tracking links.",
+        code: "PREMIUM_REQUIRED",
+      },
+      { status: 403 }
+    );
   }
 
   let body: { flightNumber?: string; expiresInDays?: number };
