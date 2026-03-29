@@ -1,7 +1,9 @@
 "use client";
 
 import type { FlightDetail } from "../../lib/flightDetailsTypes";
+import { useLiveAircraftPosition } from "../../hooks/useLiveAircraftPosition";
 import LiveFlightMapLazy from "../live/LiveFlightMapLazy";
+import LiveRadarStatusBadge from "../live/LiveRadarStatusBadge";
 import FamilyMapCard from "./FamilyMapCard";
 import { effectiveProgressPercent } from "../FlightProgress";
 
@@ -26,13 +28,30 @@ export default function FamilyLiveMapSection({
 }: Props) {
   const pct = effectiveProgressPercent(detail);
 
+  const radar = useLiveAircraftPosition({
+    flightNumber: detail.flightNumber,
+    departureAirportCode: detail.departureAirportCode,
+    arrivalAirportCode: detail.arrivalAirportCode,
+    enabled: hasUsableAirportCodes(detail),
+    pollMs: 55_000,
+  });
+
   if (hasUsableAirportCodes(detail)) {
     return (
-      <LiveFlightMapLazy
-        departureAirportCode={detail.departureAirportCode}
-        arrivalAirportCode={detail.arrivalAirportCode}
-        progressPercent={pct}
-      />
+      <div className="flex flex-col gap-2">
+        <LiveRadarStatusBadge
+          isLive={Boolean(radar.position)}
+          loading={radar.loading}
+          source={radar.position?.source}
+        />
+        <LiveFlightMapLazy
+          departureAirportCode={detail.departureAirportCode}
+          arrivalAirportCode={detail.arrivalAirportCode}
+          progressPercent={pct}
+          liveSample={radar.position}
+          regionalLabel={radar.regionalLabel}
+        />
+      </div>
     );
   }
 

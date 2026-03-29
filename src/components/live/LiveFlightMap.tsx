@@ -13,6 +13,7 @@ import {
 import type { LatLngExpression } from "leaflet";
 
 import { resolveRouteLatLng } from "../../lib/airportCoordinates";
+import type { AircraftLivePosition } from "../../lib/live/types";
 import {
   buildCurvedRoutePoints,
   positionAlongRoute,
@@ -23,7 +24,21 @@ export type LiveFlightMapProps = {
   arrivalAirportCode?: string | null;
   progressPercent: number;
   className?: string;
+  /** ADS-B / API sample; when valid, overrides simulated aircraft position */
+  liveSample?: AircraftLivePosition | null;
+  regionalLabel?: string | null;
 };
+
+function bearingDeg(a: [number, number], b: [number, number]): number {
+  const lat1 = (a[0] * Math.PI) / 180;
+  const lat2 = (b[0] * Math.PI) / 180;
+  const dLon = ((b[1] - a[1]) * Math.PI) / 180;
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x =
+    Math.cos(lat1) * Math.sin(lat2) -
+    Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
 
 function FitBounds({ points }: { points: LatLngExpression[] }) {
   const map = useMap();
@@ -48,6 +63,8 @@ export default function LiveFlightMap({
   arrivalAirportCode,
   progressPercent,
   className = "",
+  liveSample,
+  regionalLabel,
 }: LiveFlightMapProps) {
   const [ready, setReady] = useState(false);
   const { dep, arr } = useMemo(
@@ -57,20 +74,45 @@ export default function LiveFlightMap({
 
   const route = useMemo(() => buildCurvedRoutePoints(dep, arr, 56), [dep, arr]);
   const t = Math.min(100, Math.max(0, progressPercent)) / 100;
-  const planePos = useMemo(
+  const simPos = useMemo(
     () => positionAlongRoute(route, t),
     [route, t]
   );
 
+  const simHeading = useMemo(() => {
+    if (route.length < 2) return 0;
+    const maxI = route.length - 2;
+    const idx = Math.min(maxI, Math.max(0, Math.floor(t * maxI)));
+    const a = route[idx] as [number, number];
+    const b = route[idx + 1] as [number, number];
+    return bearingDeg(a, b);
+  }, [route, t]);
+
+  const useLive =
+    liveSample != null &&
+    Number.isFinite(liveSample.latitude) &&
+    Number.isFinite(liveSample.longitude) &&
+    Math.abs(liveSample.latitude) <= 90 &&
+    Math.abs(liveSample.longitude) <= 180;
+
+  const planePos: LatLngExpression = useLive
+    ? [liveSample!.latitude, liveSample!.longitude]
+    : simPos;
+
+  const headingDeg =
+    useLive && liveSample!.heading != null
+      ? liveSample!.heading
+      : simHeading;
+
   const planeIcon = useMemo(
     () =>
       L.divIcon({
-        className: "live-plane-marker",
-        html: `<div class="live-plane-inner" aria-hidden="true">✈</div>`,
+        className: `live-plane-marker${useLive ? " live-plane-marker--live" : ""}`,
+        html: `<div class="live-plane-stack" style="transform: rotate(${headingDeg}deg)" aria-hidden="true"><div class="live-plane-inner">✈</div></div>`,
         iconSize: [40, 40],
         iconAnchor: [20, 20],
       }),
-    []
+    [headingDeg, useLive]
   );
 
   const boundsPoints: LatLngExpression[] = useMemo(
@@ -82,6 +124,10 @@ export default function LiveFlightMap({
     (dep[0] + arr[0]) / 2,
     (dep[1] + arr[1]) / 2,
   ];
+
+  const footerLive = useLive
+    ? `Live ADS-B sample · ${liveSample!.source} · not for navigation`
+    : "Simulated position along route · not for navigation";
 
   return (
     <div
@@ -113,7 +159,7 @@ export default function LiveFlightMap({
             pathOptions={{
               color: "#0ea5e9",
               weight: 2,
-              opacity: 0.35,
+              opacity: useLive ? 0.22 : 0.35,
             }}
           />
           <Polyline
@@ -121,7 +167,7 @@ export default function LiveFlightMap({
             pathOptions={{
               color: "#38bdf8",
               weight: 4,
-              opacity: 0.92,
+              opacity: useLive ? 0.55 : 0.92,
               lineCap: "round",
               lineJoin: "round",
             }}
@@ -149,9 +195,12 @@ export default function LiveFlightMap({
           <Marker position={planePos} icon={planeIcon} />
         </MapContainer>
       </div>
-      <p className="border-t border-white/5 px-4 py-2.5 text-center text-[10px] text-slate-500">
-        Simulated position along route · not for navigation
-      </p>
+      <div className="border-t border-white/5 px-4 py-2.5 text-center text-[10px] leading-relaxed text-slate-500">
+        <p>{footerLive}</p>
+        {useLive && regionalLabel ? (
+          <p className="mt-1 font-medium text-slate-400">{regionalLabel}</p>
+        ) : null}
+      </div>
     </div>
   );
 }

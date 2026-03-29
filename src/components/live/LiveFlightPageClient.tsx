@@ -8,10 +8,14 @@ import {
   AnalyticsEvents,
   trackProductEvent,
 } from "../../lib/analytics/telemetry";
+import { useLiveAircraftPosition } from "../../hooks/useLiveAircraftPosition";
 import LiveFlightHeader from "./LiveFlightHeader";
+import LastSeenLocationCard from "./LastSeenLocationCard";
+import LiveAircraftStatsCard from "./LiveAircraftStatsCard";
 import LiveFlightMapLazy from "./LiveFlightMapLazy";
 import LiveFlightProgressCard from "./LiveFlightProgressCard";
 import LiveFlightStatsCard from "./LiveFlightStatsCard";
+import LiveRadarStatusBadge from "./LiveRadarStatusBadge";
 import FlightWeatherSection from "../weather/FlightWeatherSection";
 import { effectiveProgressPercent } from "../FlightProgress";
 import type { FlightDetail } from "../../lib/flightDetailsTypes";
@@ -23,6 +27,14 @@ type Props = {
 
 export default function LiveFlightPageClient({ detail, found }: Props) {
   const pct = effectiveProgressPercent(detail);
+
+  const radar = useLiveAircraftPosition({
+    flightNumber: detail.flightNumber,
+    departureAirportCode: detail.departureAirportCode,
+    arrivalAirportCode: detail.arrivalAirportCode,
+    enabled: found,
+    pollMs: 50_000,
+  });
 
   useEffect(() => {
     trackProductEvent(AnalyticsEvents.live_track_page_viewed, {
@@ -102,11 +114,30 @@ export default function LiveFlightPageClient({ detail, found }: Props) {
           transition={{ duration: 0.35 }}
         >
           <LiveFlightHeader detail={detail} />
+          <LiveRadarStatusBadge
+            isLive={Boolean(radar.position)}
+            loading={radar.loading}
+            source={radar.position?.source}
+            className="mb-1"
+          />
           <LiveFlightMapLazy
             departureAirportCode={detail.departureAirportCode}
             arrivalAirportCode={detail.arrivalAirportCode}
             progressPercent={pct}
+            liveSample={radar.position}
+            regionalLabel={radar.regionalLabel}
           />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <LastSeenLocationCard
+              regionalLabel={radar.regionalLabel}
+              lastUpdatedIso={radar.position?.lastUpdated ?? null}
+              isLive={Boolean(radar.position)}
+            />
+            <LiveAircraftStatsCard
+              position={radar.position}
+              loading={radar.loading}
+            />
+          </div>
           <LiveFlightProgressCard detail={detail} />
           <LiveFlightStatsCard detail={detail} />
           <FlightWeatherSection
@@ -121,8 +152,10 @@ export default function LiveFlightPageClient({ detail, found }: Props) {
             }
           />
           <p className="px-1 text-center text-[11px] leading-relaxed text-slate-600">
-            Map position is simulated from schedule progress. Always confirm
-            with {detail.airlineName ?? "the airline"}.
+            {radar.position
+              ? "Live position is an ADS-B sample and can lag real aircraft state."
+              : "When no live feed is available, the map follows scheduled progress."}{" "}
+            Always confirm with {detail.airlineName ?? "the airline"}.
           </p>
         </motion.div>
       </main>

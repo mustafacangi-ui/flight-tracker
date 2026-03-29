@@ -29,6 +29,8 @@ export const AnalyticsEvents = {
   family_link_created: "family_link_created",
   live_track_clicked: "live_track_clicked",
   live_track_page_viewed: "live_track_page_viewed",
+  live_radar_loaded: "live_radar_loaded",
+  live_radar_fallback_used: "live_radar_fallback_used",
   push_notifications_enabled: "push_notifications_enabled",
   notification_preferences_saved: "notification_preferences_saved",
   // PWA
