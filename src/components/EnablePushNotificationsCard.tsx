@@ -9,6 +9,10 @@ import {
   createBrowserSupabaseClient,
   isSupabaseConfigured,
 } from "../lib/supabase/client";
+import {
+  AnalyticsEvents,
+  trackProductEvent,
+} from "../lib/analytics/telemetry";
 import NotificationPreferencesModal from "./NotificationPreferencesModal";
 
 type Props = {
@@ -149,6 +153,9 @@ export default function EnablePushNotificationsCard({
         throw new Error(j.error || res.statusText);
       }
       setSubscribed(true);
+      trackProductEvent(AnalyticsEvents.push_notifications_enabled, {
+        variant,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Subscribe failed.");
     } finally {

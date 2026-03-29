@@ -1,8 +1,12 @@
 "use client";
 
 import { AnimatePresence } from "framer-motion";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import {
+  AnalyticsEvents,
+  trackProductEvent,
+} from "../../lib/analytics/telemetry";
 import {
   isBeforeInstallPromptEvent,
   type BeforeInstallPromptEvent,
@@ -36,6 +40,8 @@ export default function PwaInstallCoordinator() {
   const [forcedCard, setForcedCard] = useState(false);
   const [ios, setIos] = useState(false);
   const [standalone, setStandalone] = useState(false);
+  const cardPromptLogged = useRef(false);
+  const fabPromptLogged = useRef(false);
 
   useEffect(() => {
     setIos(isIosSafari());
@@ -64,6 +70,24 @@ export default function PwaInstallCoordinator() {
     (!cardDismissed || forcedCard) && (canPrompt || forcedCard);
   const showFab = canPrompt && !fabDismissed;
 
+  useEffect(() => {
+    if (showCard && !cardPromptLogged.current) {
+      cardPromptLogged.current = true;
+      trackProductEvent(AnalyticsEvents.pwa_install_prompt_shown, {
+        surface: "coordinator_card",
+      });
+    }
+  }, [showCard]);
+
+  useEffect(() => {
+    if (showFab && !fabPromptLogged.current) {
+      fabPromptLogged.current = true;
+      trackProductEvent(AnalyticsEvents.pwa_install_prompt_shown, {
+        surface: "coordinator_fab",
+      });
+    }
+  }, [showFab]);
+
   const dismissCard = useCallback(() => {
     writeDismissed(PWA_STORAGE.dismissInstallCard);
     setCardDismissed(true);
@@ -82,10 +106,18 @@ export default function PwaInstallCoordinator() {
 
   const fabClick = useCallback(async () => {
     if (deferredPrompt) {
+      trackProductEvent(AnalyticsEvents.pwa_install_clicked, {
+        surface: "coordinator_fab",
+      });
       try {
         await deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === "accepted") onInstalled();
+        if (outcome === "accepted") {
+          trackProductEvent(AnalyticsEvents.pwa_install_success, {
+            surface: "coordinator_fab",
+          });
+          onInstalled();
+        }
       } catch {
         /* ignore */
       }

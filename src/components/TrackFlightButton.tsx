@@ -10,6 +10,10 @@ import {
   setNotificationsDisabledForFlight,
 } from "../lib/flightTrackingStorage";
 import { canEnableTrackingForFlight } from "../lib/premiumTier";
+import {
+  AnalyticsEvents,
+  trackProductEvent,
+} from "../lib/analytics/telemetry";
 import { trackEvent } from "../lib/localAnalytics";
 import { useUpgradeModal } from "./UpgradeModalProvider";
 
@@ -53,10 +57,14 @@ export default function TrackFlightButton({
         e.stopPropagation();
         if (!tracked) {
           if (!canEnableTrackingForFlight(flightNumber)) {
-            openUpgrade();
+            openUpgrade({ blockedFeature: "track_flight" });
             return;
           }
           setFlightTracked(flightNumber, true);
+          trackProductEvent(AnalyticsEvents.flight_tracked, {
+            flight_number: flightNumber,
+            enabled: true,
+          });
           trackEvent("track_flight_on");
           onOpenPrefs?.();
           return;

@@ -3,6 +3,10 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useSavedFlights } from "../hooks/useSavedFlights";
 import { useUpgradeModal } from "./UpgradeModalProvider";
+import {
+  AnalyticsEvents,
+  trackProductEvent,
+} from "../lib/analytics/telemetry";
 import { trackEvent } from "../lib/localAnalytics";
 import { dispatchFlightSavedEvent } from "../lib/pushEvents";
 import { canAddSavedFlight } from "../lib/premiumTier";
@@ -51,7 +55,7 @@ export default function FlightSaveBookmark({ payload, className = "" }: Props) {
           !saved &&
           !canAddSavedFlight(savedFlights.length, false)
         ) {
-          openUpgrade();
+          openUpgrade({ blockedFeature: "save_flight" });
           return;
         }
         const { saved: nowSaved } = toggle({
@@ -59,8 +63,15 @@ export default function FlightSaveBookmark({ payload, className = "" }: Props) {
           timestamp: Date.now(),
         });
         if (nowSaved) {
+          trackProductEvent(AnalyticsEvents.flight_saved, {
+            flight_number: payload.flightNumber,
+          });
           trackEvent("save_flight", { flightNumber: payload.flightNumber });
           dispatchFlightSavedEvent();
+        } else {
+          trackProductEvent(AnalyticsEvents.flight_unsaved, {
+            flight_number: payload.flightNumber,
+          });
         }
       }}
       aria-pressed={saved}

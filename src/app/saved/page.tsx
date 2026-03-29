@@ -10,8 +10,10 @@ import SavedFlightsDashboard from "../../components/saved/SavedFlightsDashboard"
 import { getEffectiveAirportTimeZone } from "../../lib/formatAirportTime";
 import type { FavoriteAirport } from "../../lib/quickAccessStorage";
 import { useQuickAccess } from "../../hooks/useQuickAccess";
+import { useTrackPageView } from "../../hooks/useTrackPageView";
 
 export default function SavedFlightsPage() {
+  useTrackPageView("saved");
   const router = useRouter();
   const { favoriteAirports } = useQuickAccess();
 

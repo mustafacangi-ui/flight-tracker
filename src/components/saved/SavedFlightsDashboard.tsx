@@ -344,7 +344,7 @@ export default function SavedFlightsDashboard() {
             </div>
             <button
               type="button"
-              onClick={() => openUpgrade()}
+              onClick={() => openUpgrade({ blockedFeature: "saved_flights_limit" })}
               className="shrink-0 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/30 transition hover:bg-blue-500"
             >
               View Pro

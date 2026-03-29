@@ -175,7 +175,9 @@ export default function FlightDetailClient({ detail, found }: Props) {
               copied={copied}
               onShare={() => void copyLink()}
               onOpenPrefs={() => setPrefsOpen(true)}
-              onUnlockRouteHistory={() => openUpgrade()}
+              onUnlockRouteHistory={() =>
+                openUpgrade({ blockedFeature: "route_history" })
+              }
             />
 
             <motion.div
@@ -189,7 +191,11 @@ export default function FlightDetailClient({ detail, found }: Props) {
             {mapPremium ? (
               <FlightLiveRouteMapSection detail={flight} />
             ) : (
-              <PremiumLiveMapTeaser onUnlock={() => openUpgrade()} />
+              <PremiumLiveMapTeaser
+                onUnlock={() =>
+                  openUpgrade({ blockedFeature: "live_map_detail" })
+                }
+              />
             )}
 
             <FlightProgress detail={flight} />

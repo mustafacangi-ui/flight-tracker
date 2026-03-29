@@ -6,6 +6,10 @@ import { useCallback } from "react";
 import { useUpgradeModal } from "./UpgradeModalProvider";
 import { usePremiumFlag } from "../hooks/usePremiumFlag";
 import {
+  AnalyticsEvents,
+  trackProductEvent,
+} from "../lib/analytics/telemetry";
+import {
   absoluteFlightCardUrl,
   familyShareWhatsAppUrl,
   liveTrackPath,
@@ -83,9 +87,13 @@ export default function FlightCardLiveRow({
   const goLiveTrack = (e: React.MouseEvent) => {
     stop(e);
     if (!premium) {
-      openUpgrade();
+      openUpgrade({ blockedFeature: "live_track" });
       return;
     }
+    trackProductEvent(AnalyticsEvents.live_track_clicked, {
+      channel: "in_app",
+      flight_number: flightNumber,
+    });
     router.push(liveTrackPath(flightNumber));
   };
 

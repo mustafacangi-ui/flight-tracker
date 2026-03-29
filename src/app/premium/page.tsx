@@ -6,6 +6,7 @@ import Link from "next/link";
 import HomeTopAuthBar from "../../components/home/HomeTopAuthBar";
 import { useUpgradeModal } from "../../components/UpgradeModalProvider";
 import { usePremiumFlag } from "../../hooks/usePremiumFlag";
+import { useTrackPageView } from "../../hooks/useTrackPageView";
 import { PREMIUM_MODAL_FEATURES } from "../../lib/premiumTier";
 
 const ROWS: { feature: string; free: string; premium: string }[] = [
@@ -75,6 +76,7 @@ function CheckCell({ ok }: { ok: boolean }) {
 }
 
 export default function PremiumPage() {
+  useTrackPageView("premium");
   const { openUpgrade } = useUpgradeModal();
   const premium = usePremiumFlag();
 

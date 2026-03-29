@@ -3,6 +3,10 @@
 import { useCallback, useState } from "react";
 
 import { useUpgradeModal } from "../UpgradeModalProvider";
+import {
+  AnalyticsEvents,
+  trackProductEvent,
+} from "../../lib/analytics/telemetry";
 import { flightRadar24Url } from "../../lib/externalFlightLinks";
 import { usePremiumFlag } from "../../hooks/usePremiumFlag";
 
@@ -89,8 +93,12 @@ export default function FlightShareSection({
   const trackUrl = flightRadar24Url(flightNumber);
 
   const copyFamilyLink = useCallback(async () => {
+    trackProductEvent(AnalyticsEvents.family_share_clicked, {
+      channel: "family_link_clipboard",
+      flight_number: flightNumber,
+    });
     if (!premium) {
-      openUpgrade();
+      openUpgrade({ blockedFeature: "family_link" });
       return;
     }
     try {
@@ -101,12 +109,15 @@ export default function FlightShareSection({
         body: JSON.stringify({ flightNumber }),
       });
       if (res.status === 403) {
-        openUpgrade();
+        openUpgrade({ blockedFeature: "family_link" });
         return;
       }
       if (res.ok) {
         const body = (await res.json()) as { shareUrl?: string };
         if (body.shareUrl) {
+          trackProductEvent(AnalyticsEvents.family_link_created, {
+            flight_number: flightNumber,
+          });
           await navigator.clipboard.writeText(body.shareUrl);
           setFamilyCopied(true);
           window.setTimeout(() => setFamilyCopied(false), 2800);
@@ -154,6 +165,12 @@ export default function FlightShareSection({
           target="_blank"
           rel="noopener noreferrer"
           className={btn}
+          onClick={() =>
+            trackProductEvent(AnalyticsEvents.live_track_clicked, {
+              channel: "external_fr24",
+              flight_number: flightNumber,
+            })
+          }
         >
           <IconExternal className="text-amber-200/90" />
           Open live tracking

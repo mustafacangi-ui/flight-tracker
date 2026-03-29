@@ -88,7 +88,7 @@ export default function FlightNotificationToggle({ flight, className = "" }: Pro
             .eq("user_id", user.id);
           if (cErr) throw cErr;
           if ((count ?? 0) >= FREE_TIER.maxTrackedFlights) {
-            openUpgrade();
+            openUpgrade({ blockedFeature: "tracked_flights_limit" });
             return;
           }
         }

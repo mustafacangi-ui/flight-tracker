@@ -50,7 +50,7 @@ export default function PremiumBadge({
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        openUpgrade();
+        openUpgrade({ blockedFeature: "premium_badge" });
       }}
     >
       {COPY[variant]}

@@ -69,7 +69,7 @@ export default function PremiumUnlockCard() {
         <div className="flex shrink-0 flex-col gap-2 sm:w-44">
           <button
             type="button"
-            onClick={() => openUpgrade()}
+            onClick={() => openUpgrade({ blockedFeature: "home_premium_upsell" })}
             className="w-full rounded-2xl bg-gradient-to-r from-blue-600 via-sky-500 to-indigo-600 py-3.5 text-sm font-bold text-white shadow-[0_10px_36px_rgba(37,99,235,0.45)] transition hover:brightness-110"
           >
             See plans

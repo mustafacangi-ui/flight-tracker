@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import HomeTopAuthBar from "../../../components/home/HomeTopAuthBar";
 import {
@@ -15,6 +15,10 @@ import {
   createBrowserSupabaseClient,
   isSupabaseConfigured,
 } from "../../../lib/supabase/client";
+import {
+  AnalyticsEvents,
+  trackProductEvent,
+} from "../../../lib/analytics/telemetry";
 
 function ConfettiBurst() {
   return (
@@ -39,6 +43,18 @@ function ConfettiBurst() {
 
 export default function PremiumSuccessPage() {
   const [synced, setSynced] = useState(false);
+  const checkoutTracked = useRef(false);
+
+  useEffect(() => {
+    if (checkoutTracked.current) return;
+    checkoutTracked.current = true;
+    trackProductEvent(AnalyticsEvents.premium_checkout_success, {
+      channel: "stripe",
+    });
+    trackProductEvent(AnalyticsEvents.stripe_checkout_completed, {
+      channel: "stripe",
+    });
+  }, []);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {

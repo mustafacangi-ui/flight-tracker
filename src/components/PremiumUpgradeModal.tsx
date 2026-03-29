@@ -5,6 +5,10 @@ import Link from "next/link";
 import { useCallback, useEffect, useId, useState } from "react";
 
 import { usePremiumFlag } from "../hooks/usePremiumFlag";
+import {
+  AnalyticsEvents,
+  trackProductEvent,
+} from "../lib/analytics/telemetry";
 import { grantClientPremiumTier } from "../lib/premiumSyncClient";
 import { PREMIUM_MODAL_FEATURES } from "../lib/premiumTier";
 import { createBrowserSupabaseClient } from "../lib/supabase/client";
@@ -115,6 +119,11 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
 
       setBusy(true);
       try {
+        trackProductEvent(AnalyticsEvents.premium_checkout_started, {
+          plan,
+          channel: "stripe",
+        });
+        trackProductEvent(AnalyticsEvents.stripe_checkout_started, { plan });
         const res = await fetch("/api/stripe/checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -130,6 +139,10 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
         }
         throw new Error("No checkout URL returned");
       } catch (e) {
+        trackProductEvent(AnalyticsEvents.stripe_payment_failed, {
+          phase: "checkout_start",
+          has_message: e instanceof Error && Boolean(e.message),
+        });
         setCheckoutError(
           e instanceof Error ? e.message : "Checkout failed. Try again."
         );
@@ -141,7 +154,15 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
 
     setBusy(true);
     try {
+      trackProductEvent(AnalyticsEvents.premium_checkout_started, {
+        plan,
+        channel: "qa_local",
+      });
       await grantClientPremiumTier();
+      trackProductEvent(AnalyticsEvents.premium_checkout_success, {
+        plan,
+        channel: "qa_local",
+      });
       try {
         localStorage.setItem("flightApp_premiumPlanPreference", plan);
       } catch {

@@ -4,6 +4,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useId, useState } from "react";
 
 import { signInWithApple } from "../lib/auth/appleLogin";
+import {
+  AnalyticsEvents,
+  trackProductEvent,
+} from "../lib/analytics/telemetry";
 import { getOAuthRedirectToClient } from "../lib/oauthRedirect";
 import { createBrowserSupabaseClient } from "../lib/supabase/client";
 
@@ -245,6 +249,12 @@ export default function RouteWingsAuthModal({
   const authBusy = oauthLoading !== null;
 
   useEffect(() => {
+    if (open) {
+      trackProductEvent(AnalyticsEvents.login_started, { intent });
+    }
+  }, [open, intent]);
+
+  useEffect(() => {
     if (!open) {
       setPushOpen(false);
       setFormError(null);
@@ -270,6 +280,7 @@ export default function RouteWingsAuthModal({
       return;
     }
     setOauthLoading("google");
+    trackProductEvent(AnalyticsEvents.google_login_clicked);
     try {
       const redirectTo = getOAuthRedirectToClient();
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
@@ -321,6 +332,7 @@ export default function RouteWingsAuthModal({
     onDismissOauthReturnError?.();
     setOauthError(null);
     setOauthLoading("apple");
+    trackProductEvent(AnalyticsEvents.apple_login_clicked);
     try {
       const result = await signInWithApple();
       if (!result.ok) {
@@ -346,6 +358,11 @@ export default function RouteWingsAuthModal({
     if (!agreed) {
       setFormError("Please accept the Terms of Service and Privacy Policy.");
       return;
+    }
+    if (method === "magic") {
+      trackProductEvent(AnalyticsEvents.magic_link_requested, {
+        has_display_name: Boolean(displayName.trim()),
+      });
     }
     onContinue?.({
       email: trimmed,

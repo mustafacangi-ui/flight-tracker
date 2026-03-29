@@ -5,6 +5,10 @@ import { useCallback, useEffect, useId, useState } from "react";
 
 import type { FlightNotifyPrefs, NotifyPrefKey } from "../lib/savedFlightNotifyPrefs";
 import {
+  AnalyticsEvents,
+  trackProductEvent,
+} from "../lib/analytics/telemetry";
+import {
   loadPrefsForFlight,
   NOTIFY_PREF_LABELS,
   NOTIFY_PREF_SECTIONS,
@@ -45,6 +49,14 @@ export default function NotificationPrefsModal({
 
   const save = () => {
     savePrefsForFlight(flightNumber, prefs);
+    const enabledKeys = (
+      Object.keys(prefs) as (keyof typeof prefs)[]
+    ).filter((k) => prefs[k]);
+    trackProductEvent(AnalyticsEvents.notification_preferences_saved, {
+      scope: "flight",
+      flight_number: flightNumber,
+      enabled_count: enabledKeys.length,
+    });
     onClose();
   };
 

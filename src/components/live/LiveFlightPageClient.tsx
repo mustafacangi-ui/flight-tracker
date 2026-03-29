@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { useEffect } from "react";
 
+import {
+  AnalyticsEvents,
+  trackProductEvent,
+} from "../../lib/analytics/telemetry";
 import LiveFlightHeader from "./LiveFlightHeader";
 import LiveFlightMapLazy from "./LiveFlightMapLazy";
 import LiveFlightProgressCard from "./LiveFlightProgressCard";
@@ -18,6 +23,13 @@ type Props = {
 
 export default function LiveFlightPageClient({ detail, found }: Props) {
   const pct = effectiveProgressPercent(detail);
+
+  useEffect(() => {
+    trackProductEvent(AnalyticsEvents.live_track_page_viewed, {
+      found,
+      ...(found ? { flight_number: detail.flightNumber } : {}),
+    });
+  }, [found, detail.flightNumber]);
 
   if (!found) {
     return (

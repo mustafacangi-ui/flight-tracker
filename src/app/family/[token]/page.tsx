@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 
+import FamilyPageViewTracker from "../../../components/family/FamilyPageViewTracker";
 import FamilyAirportCard from "../../../components/family/FamilyAirportCard";
 import FamilyHeaderCard from "../../../components/family/FamilyHeaderCard";
 import FamilyLiveMapSection from "../../../components/family/FamilyLiveMapSection";
@@ -17,6 +18,7 @@ export const dynamic = "force-dynamic";
 function InvalidFamilyLink() {
   return (
     <div className="min-h-screen bg-[#05060a] px-4 py-[max(3rem,env(safe-area-inset-top))] pb-[max(3rem,env(safe-area-inset-bottom))] text-white">
+      <FamilyPageViewTracker />
       <div
         className="pointer-events-none fixed inset-0 opacity-[0.45]"
         aria-hidden
@@ -121,6 +123,7 @@ export default async function FamilyTrackingPage({
         }}
       />
       <main className="relative mx-auto max-w-lg px-4 py-[max(1.25rem,env(safe-area-inset-top))] pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-8">
+        <FamilyPageViewTracker />
         <div className="flex flex-col gap-5 sm:gap-6">
           <FamilyHeaderCard flight={detail} />
           <FamilyStatusCard variant="live" detail={detail} />

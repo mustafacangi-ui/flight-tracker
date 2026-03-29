@@ -1,11 +1,16 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useEffect, useRef } from "react";
 
 import {
   isStandaloneDisplayMode,
   useInstallPrompt,
 } from "../hooks/useInstallPrompt";
+import {
+  AnalyticsEvents,
+  trackProductEvent,
+} from "../lib/analytics/telemetry";
 
 export default function InstallAppCard() {
   const {
@@ -15,6 +20,22 @@ export default function InstallAppCard() {
     dismissed,
     hydrated,
   } = useInstallPrompt();
+  const promptShownLogged = useRef(false);
+
+  useEffect(() => {
+    if (
+      hydrated &&
+      canInstall &&
+      !dismissed &&
+      !isStandaloneDisplayMode() &&
+      !promptShownLogged.current
+    ) {
+      promptShownLogged.current = true;
+      trackProductEvent(AnalyticsEvents.pwa_install_prompt_shown, {
+        surface: "home_install_card",
+      });
+    }
+  }, [hydrated, canInstall, dismissed]);
 
   if (
     !hydrated ||
@@ -51,7 +72,19 @@ export default function InstallAppCard() {
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
         <button
           type="button"
-          onClick={() => void promptInstall()}
+          onClick={() => {
+            void (async () => {
+              trackProductEvent(AnalyticsEvents.pwa_install_clicked, {
+                surface: "home_install_card",
+              });
+              const ok = await promptInstall();
+              if (ok) {
+                trackProductEvent(AnalyticsEvents.pwa_install_success, {
+                  surface: "home_install_card",
+                });
+              }
+            })();
+          }}
           className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 sm:flex-1"
         >
           Install App

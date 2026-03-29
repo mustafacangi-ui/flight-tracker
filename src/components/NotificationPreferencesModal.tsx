@@ -3,6 +3,10 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useId, useState } from "react";
 
+import {
+  AnalyticsEvents,
+  trackProductEvent,
+} from "../lib/analytics/telemetry";
 import { createBrowserSupabaseClient } from "../lib/supabase/client";
 
 export type NotificationPrefs = {
@@ -119,6 +123,11 @@ export default function NotificationPreferencesModal({ open, onClose }: Props) {
       setError(upErr.message);
       return;
     }
+    const enabledCount = Object.values(prefs).filter(Boolean).length;
+    trackProductEvent(AnalyticsEvents.notification_preferences_saved, {
+      scope: "account",
+      enabled_count: enabledCount,
+    });
     onClose();
   };
 

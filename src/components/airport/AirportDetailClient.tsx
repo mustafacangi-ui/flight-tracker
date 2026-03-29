@@ -634,7 +634,9 @@ export default function AirportDetailClient({ airportCode }: Props) {
           </p>
           <button
             type="button"
-            onClick={() => openUpgrade()}
+            onClick={() =>
+              openUpgrade({ blockedFeature: "airport_pro_insights" })
+            }
             className="mt-4 w-full rounded-2xl bg-blue-600 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-950/30 transition hover:bg-blue-500 sm:w-auto sm:px-8"
           >
             Explore Pro

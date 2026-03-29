@@ -2,6 +2,10 @@
 
 import { motion } from "framer-motion";
 
+import {
+  AnalyticsEvents,
+  trackProductEvent,
+} from "../../lib/analytics/telemetry";
 import type { BeforeInstallPromptEvent } from "../../lib/pwa/beforeInstallPromptEvent";
 
 type Props = {
@@ -43,10 +47,18 @@ export default function PwaInstallCard({
 }: Props) {
   const handleInstall = async () => {
     if (!deferredPrompt) return;
+    trackProductEvent(AnalyticsEvents.pwa_install_clicked, {
+      surface: "coordinator_card",
+    });
     try {
       await deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === "accepted") onInstalled();
+      if (outcome === "accepted") {
+        trackProductEvent(AnalyticsEvents.pwa_install_success, {
+          surface: "coordinator_card",
+        });
+        onInstalled();
+      }
     } catch {
       /* ignore */
     }

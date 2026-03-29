@@ -13,6 +13,10 @@ import {
   STORAGE_TIER_KEY,
 } from "../lib/premiumTier";
 import { userHasPremiumSubscription } from "../lib/premiumUserMeta";
+import {
+  AnalyticsEvents,
+  trackProductEvent,
+} from "../lib/analytics/telemetry";
 import { applySupabaseUserToRouteWingsSession } from "../lib/syncSupabaseRouteWingsSession";
 
 /**
@@ -54,6 +58,17 @@ export default function SupabaseAuthListener() {
       console.log("[auth] onAuthStateChange", event, {
         email: session?.user?.email,
       });
+      if (event === "SIGNED_IN" && session?.user) {
+        const identities = session.user.identities ?? [];
+        const provider =
+          (identities[0]?.provider as string | undefined) ??
+          (session.user.app_metadata?.provider as string | undefined) ??
+          "unknown";
+        trackProductEvent(AnalyticsEvents.login_success, {
+          auth_provider: provider,
+          user_id: session.user.id,
+        });
+      }
       if (session?.user) {
         applySupabaseUserToRouteWingsSession(session.user);
         if (userHasPremiumSubscription(session.user)) {

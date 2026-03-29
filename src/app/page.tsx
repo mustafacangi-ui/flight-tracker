@@ -44,6 +44,7 @@ import EmptyState from "../components/EmptyState";
 import ErrorState from "../components/ErrorState";
 import { writeDebugSessionFidsCache } from "../lib/debugFlightSessionCache";
 import { usePremiumFlag } from "../hooks/usePremiumFlag";
+import { useTrackPageView } from "../hooks/useTrackPageView";
 
 const REFRESH_MS = 5 * 60 * 1000;
 
@@ -62,6 +63,7 @@ type FlightsCacheEntry = {
 };
 
 export default function Home() {
+  useTrackPageView("home");
   const premiumUser = usePremiumFlag();
   const [departures, setDepartures] = useState<DisplayFlight[]>([]);
   const [arrivals, setArrivals] = useState<DisplayFlight[]>([]);
