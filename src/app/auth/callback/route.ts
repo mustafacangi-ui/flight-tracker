@@ -48,6 +48,18 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  console.log("[auth] OAuth exchange OK, redirecting to", next);
+  const {
+    data: { session },
+    error: sessionReadError,
+  } = await supabase.auth.getSession();
+  console.log("[auth] callback getSession after exchangeCodeForSession", {
+    hasSession: Boolean(session),
+    userId: session?.user?.id ?? null,
+    email: session?.user?.email ?? null,
+    err: sessionReadError?.message ?? null,
+  });
+
+  const finalUrl = `${origin}${next}`;
+  console.log("[auth] OAuth exchange OK → redirect", { finalUrl, next });
   return redirect;
 }

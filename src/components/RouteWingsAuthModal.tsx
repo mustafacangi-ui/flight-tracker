@@ -253,7 +253,21 @@ export default function RouteWingsAuthModal({
     setGoogleLoading(true);
     try {
       const redirectTo = getOAuthRedirectToClient();
-      console.log("[auth] signInWithOAuth google", { redirectTo });
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+      let supabaseHost = "(unset)";
+      try {
+        if (supabaseUrl) supabaseHost = new URL(supabaseUrl).hostname;
+      } catch {
+        supabaseHost = "(invalid URL)";
+      }
+      console.log("[auth] signInWithOAuth start", {
+        redirectTo,
+        provider: "google",
+        windowHref: window.location.href,
+        windowHostname: window.location.hostname,
+        NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL ?? "(unset)",
+        NEXT_PUBLIC_SUPABASE_HOST: supabaseHost,
+      });
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo },
@@ -264,7 +278,17 @@ export default function RouteWingsAuthModal({
         setGoogleLoading(false);
         return;
       }
-      console.log("[auth] redirecting to provider", data?.url);
+      let providerUrlHost: string | null = null;
+      if (data?.url) {
+        try {
+          providerUrlHost = new URL(data.url).hostname;
+        } catch {
+          providerUrlHost = "(parse error)";
+        }
+      }
+      console.log("[auth] signInWithOAuth OK → navigate to provider", {
+        providerUrlHost,
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Something went wrong.";
       console.error("[auth] signInWithOAuth exception", e);
