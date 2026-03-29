@@ -8,6 +8,7 @@ import {
 } from "../lib/supabase/client";
 import { clearRouteWingsSession } from "../lib/routeWingsSessionStorage";
 import {
+  dispatchPremiumTierUpdated,
   PREMIUM_TIER_UPDATED_EVENT,
   STORAGE_TIER_KEY,
 } from "../lib/premiumTier";
@@ -36,6 +37,14 @@ export default function SupabaseAuthListener() {
       });
       if (session?.user) {
         applySupabaseUserToRouteWingsSession(session.user);
+        if (userHasPremiumSubscription(session.user)) {
+          try {
+            localStorage.setItem(STORAGE_TIER_KEY, "premium");
+            dispatchPremiumTierUpdated();
+          } catch {
+            /* ignore */
+          }
+        }
       }
     });
 

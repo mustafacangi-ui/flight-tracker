@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import HomeTopAuthBar from "../../components/home/HomeTopAuthBar";
 import { useUpgradeModal } from "../../components/UpgradeModalProvider";
+import { usePremiumFlag } from "../../hooks/usePremiumFlag";
 import { PREMIUM_MODAL_FEATURES } from "../../lib/premiumTier";
 
 const ROWS: { feature: string; free: string; premium: string }[] = [
@@ -53,7 +54,7 @@ const ROWS: { feature: string; free: string; premium: string }[] = [
 const FAQ = [
   {
     q: "How does billing work?",
-    a: "Phase 1 uses in-app unlock while we finish Stripe Checkout. Configure your Stripe keys and price IDs in the environment, then we’ll route the CTA to a secure session.",
+    a: "Subscribe with Stripe Checkout (when configured). You’ll return to our success page and Premium activates on your account. QA mode still offers a local unlock when Stripe env vars are missing.",
   },
   {
     q: "Can my family see flights without Premium?",
@@ -75,6 +76,7 @@ function CheckCell({ ok }: { ok: boolean }) {
 
 export default function PremiumPage() {
   const { openUpgrade } = useUpgradeModal();
+  const premium = usePremiumFlag();
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#04060d] text-white">
@@ -114,13 +116,20 @@ export default function PremiumPage() {
             and a cockpit-grade map — in one subscription.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => openUpgrade()}
-              className="w-full max-w-xs rounded-2xl bg-gradient-to-r from-blue-600 via-sky-500 to-indigo-600 py-3.5 text-sm font-bold text-white shadow-[0_12px_40px_rgba(37,99,235,0.45)] transition hover:brightness-110 sm:w-auto sm:px-10"
-            >
-              Unlock Premium
-            </button>
+            {premium ? (
+              <div className="w-full max-w-md rounded-2xl border border-emerald-500/35 bg-emerald-500/10 px-6 py-4 text-center text-sm font-medium text-emerald-100/95 ring-1 ring-emerald-500/15">
+                You already have Premium — open the tracker or saved flights to
+                use every feature.
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => openUpgrade()}
+                className="w-full max-w-xs rounded-2xl bg-gradient-to-r from-blue-600 via-sky-500 to-indigo-600 py-3.5 text-sm font-bold text-white shadow-[0_12px_40px_rgba(37,99,235,0.45)] transition hover:brightness-110 sm:w-auto sm:px-10"
+              >
+                Unlock Premium
+              </button>
+            )}
             <Link
               href="/saved"
               className="w-full max-w-xs rounded-2xl border border-white/15 bg-white/[0.05] py-3.5 text-center text-sm font-semibold text-slate-200 transition hover:border-blue-400/35 sm:w-auto sm:px-8"
@@ -234,14 +243,17 @@ export default function PremiumPage() {
           className="mt-14 flex flex-col items-center gap-3 rounded-3xl border border-blue-500/30 bg-gradient-to-br from-blue-600/15 via-slate-950/80 to-indigo-950/80 p-8 text-center shadow-[0_0_40px_rgba(37,99,235,0.2)]"
         >
           <p className="text-sm font-medium text-slate-300">
-            Ready for the full RouteWings experience?
+            {premium
+              ? "You’re all set with Premium."
+              : "Ready for the full RouteWings experience?"}
           </p>
           <button
             type="button"
+            disabled={premium}
             onClick={() => openUpgrade()}
-            className="rounded-2xl bg-gradient-to-r from-blue-600 to-sky-500 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-blue-950/40 transition hover:brightness-110"
+            className="rounded-2xl bg-gradient-to-r from-blue-600 to-sky-500 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-blue-950/40 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            See plans & unlock
+            {premium ? "You already have Premium" : "See plans & unlock"}
           </button>
         </motion.div>
       </div>

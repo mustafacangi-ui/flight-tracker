@@ -2,11 +2,12 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { useCallback, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
-import { getStripePriceIds } from "../lib/stripeEnv";
-import { PREMIUM_MODAL_FEATURES } from "../lib/premiumTier";
+import { usePremiumFlag } from "../hooks/usePremiumFlag";
 import { grantClientPremiumTier } from "../lib/premiumSyncClient";
+import { PREMIUM_MODAL_FEATURES } from "../lib/premiumTier";
+import { createBrowserSupabaseClient } from "../lib/supabase/client";
 
 export type PremiumBillingPlan = "monthly" | "yearly";
 
@@ -37,6 +38,7 @@ function CheckIcon({ className }: { className?: string }) {
       className={className}
       viewBox="0 0 20 20"
       fill="none"
+      stroke="currentColor"
       aria-hidden
     >
       <circle
@@ -58,21 +60,90 @@ function CheckIcon({ className }: { className?: string }) {
 }
 
 export default function PremiumUpgradeModal({ open, onClose }: Props) {
+  const premium = usePremiumFlag();
   const [plan, setPlan] = useState<PremiumBillingPlan>("yearly");
   const [busy, setBusy] = useState(false);
+  const [checkoutEnabled, setCheckoutEnabled] = useState<boolean | null>(null);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const titleId = useId();
   const descId = useId();
-  const priceIds = getStripePriceIds();
+
+  useEffect(() => {
+    if (!open) return;
+    setCheckoutError(null);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/stripe/config");
+        const data = (await res.json()) as { checkoutEnabled?: boolean };
+        if (!cancelled) setCheckoutEnabled(Boolean(data.checkoutEnabled));
+      } catch {
+        if (!cancelled) setCheckoutEnabled(false);
+      }
+      const supabase = createBrowserSupabaseClient();
+      if (!supabase) {
+        if (!cancelled) setSignedIn(false);
+        return;
+      }
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!cancelled) setSignedIn(Boolean(user));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   const handleSubscribe = useCallback(async () => {
+    if (premium) return;
+    setCheckoutError(null);
+
+    if (checkoutEnabled) {
+      const supabase = createBrowserSupabaseClient();
+      const {
+        data: { user },
+      } = (await supabase?.auth.getUser()) ?? { data: { user: null } };
+      if (!user) {
+        setCheckoutError(
+          "Sign in with Google from the header to start Stripe Checkout."
+        );
+        setSignedIn(false);
+        return;
+      }
+
+      setBusy(true);
+      try {
+        const res = await fetch("/api/stripe/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ plan }),
+        });
+        const data = (await res.json()) as { url?: string; error?: string };
+        if (!res.ok) {
+          throw new Error(data.error || "Could not start checkout");
+        }
+        if (data.url) {
+          window.location.href = data.url;
+          return;
+        }
+        throw new Error("No checkout URL returned");
+      } catch (e) {
+        setCheckoutError(
+          e instanceof Error ? e.message : "Checkout failed. Try again."
+        );
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     setBusy(true);
     try {
       await grantClientPremiumTier();
       try {
-        localStorage.setItem(
-          "flightApp_premiumPlanPreference",
-          plan
-        );
+        localStorage.setItem("flightApp_premiumPlanPreference", plan);
       } catch {
         /* ignore */
       }
@@ -80,7 +151,7 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
     } finally {
       setBusy(false);
     }
-  }, [onClose, plan]);
+  }, [checkoutEnabled, onClose, plan, premium]);
 
   return (
     <AnimatePresence>
@@ -114,11 +185,18 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
             <div className="pointer-events-none absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-sky-500/15 blur-3xl" />
 
             <div className="relative flex max-h-full flex-col overflow-y-auto overscroll-contain px-5 pb-6 pt-7 sm:px-7 sm:pb-8 sm:pt-8">
-              <div className="mb-5 flex items-start justify-between gap-3">
-                <span className="inline-flex items-center gap-2 rounded-full border border-blue-400/35 bg-gradient-to-r from-blue-600/20 via-sky-500/15 to-indigo-600/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.22em] text-sky-100/95 shadow-[0_0_24px_rgba(56,189,248,0.15)]">
-                  <CrownIcon className="h-4 w-4 text-amber-300" />
-                  Premium
-                </span>
+              <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-blue-400/35 bg-gradient-to-r from-blue-600/20 via-sky-500/15 to-indigo-600/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.22em] text-sky-100/95 shadow-[0_0_24px_rgba(56,189,248,0.15)]">
+                    <CrownIcon className="h-4 w-4 text-amber-300" />
+                    Premium
+                  </span>
+                  {checkoutEnabled === false ? (
+                    <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wide text-amber-200/90">
+                      Stripe not configured
+                    </span>
+                  ) : null}
+                </div>
                 <button
                   type="button"
                   onClick={onClose}
@@ -128,6 +206,13 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
                   <span className="text-xl leading-none">×</span>
                 </button>
               </div>
+
+              {premium ? (
+                <div className="mb-5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100/95 ring-1 ring-emerald-500/15">
+                  You already have Premium — enjoy unlimited saves, family links,
+                  and live tracking.
+                </div>
+              ) : null}
 
               <h2
                 id={titleId}
@@ -165,8 +250,9 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <button
                   type="button"
+                  disabled={premium}
                   onClick={() => setPlan("monthly")}
-                  className={`rounded-2xl border p-4 text-left transition ${
+                  className={`rounded-2xl border p-4 text-left transition disabled:opacity-45 ${
                     plan === "monthly"
                       ? "border-blue-500/50 bg-blue-500/[0.12] shadow-[0_0_28px_rgba(37,99,235,0.2)] ring-1 ring-blue-400/25"
                       : "border-white/10 bg-white/[0.03] hover:border-white/20"
@@ -193,8 +279,9 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
                   </div>
                   <button
                     type="button"
+                    disabled={premium}
                     onClick={() => setPlan("yearly")}
-                    className={`relative h-full w-full rounded-[0.95rem] p-4 pt-5 text-left ${
+                    className={`relative h-full w-full rounded-[0.95rem] p-4 pt-5 text-left disabled:opacity-45 ${
                       plan === "yearly"
                         ? "bg-slate-950/95"
                         : "bg-slate-950/80 hover:bg-slate-950/90"
@@ -209,24 +296,34 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
                 </div>
               </div>
 
-              {priceIds.monthly || priceIds.yearly ? (
-                <p className="mt-3 text-[10px] leading-relaxed text-slate-600">
-                  Stripe price IDs detected — Checkout integration can use{" "}
-                  <code className="rounded bg-white/5 px-1 text-slate-400">
-                    NEXT_PUBLIC_STRIPE_PRICE_{plan === "monthly" ? "MONTHLY" : "YEARLY"}
-                  </code>
-                  .
+              {checkoutEnabled && signedIn === false ? (
+                <p className="mt-3 text-xs leading-relaxed text-amber-200/85">
+                  Sign in from the header to continue with secure Checkout.
+                </p>
+              ) : null}
+
+              {checkoutError ? (
+                <p className="mt-3 text-xs text-red-300/95" role="alert">
+                  {checkoutError}
                 </p>
               ) : null}
 
               <div className="mt-6 flex flex-col gap-2.5">
                 <button
                   type="button"
-                  disabled={busy}
+                  disabled={busy || premium}
                   onClick={() => void handleSubscribe()}
-                  className="w-full rounded-2xl bg-gradient-to-r from-blue-600 via-sky-500 to-indigo-600 py-3.5 text-sm font-bold text-white shadow-[0_12px_40px_rgba(37,99,235,0.4)] transition hover:brightness-110 disabled:opacity-50 active:scale-[0.99]"
+                  className="w-full rounded-2xl bg-gradient-to-r from-blue-600 via-sky-500 to-indigo-600 py-3.5 text-sm font-bold text-white shadow-[0_12px_40px_rgba(37,99,235,0.4)] transition hover:brightness-110 disabled:opacity-45 active:scale-[0.99]"
                 >
-                  {busy ? "Unlocking…" : "Unlock Premium"}
+                  {premium
+                    ? "You already have Premium"
+                    : busy
+                      ? checkoutEnabled
+                        ? "Redirecting to Checkout…"
+                        : "Unlocking…"
+                      : checkoutEnabled
+                        ? "Continue to Checkout"
+                        : "Unlock Premium (QA)"}
                 </button>
                 <Link
                   href="/premium"
@@ -245,9 +342,9 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
               </div>
 
               <p className="mt-4 text-center text-[11px] leading-relaxed text-slate-600">
-                Phase 1 preview: unlocks Premium in-app and syncs to your
-                account when signed in. Stripe Checkout wires up with the price
-                IDs in your environment.
+                {checkoutEnabled
+                  ? "Secure payment via Stripe. Subscription renews until you cancel in the customer portal."
+                  : "QA mode: unlocks Premium locally and syncs metadata when signed in. Add Stripe keys for live Checkout."}
               </p>
             </div>
           </motion.div>
