@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import AirportDetailClient from "../../../components/airport/AirportDetailClient";
+import AirportSeoBelowFold from "../../../components/seo/AirportSeoBelowFold";
+import {
+  getAirportSeoMeta,
+  SEO_AIRPORT_CODES,
+} from "../../../lib/seo/catalog";
 
 function normalizeAirportParam(raw: string): string {
   try {
@@ -37,5 +42,10 @@ export default async function AirportDetailPage({
   if (!/^[A-Z]{3,4}$/.test(code)) {
     notFound();
   }
-  return <AirportDetailClient airportCode={code} />;
+  return (
+    <>
+      <AirportDetailClient airportCode={code} />
+      <AirportSeoBelowFold airportCode={code} />
+    </>
+  );
 }
