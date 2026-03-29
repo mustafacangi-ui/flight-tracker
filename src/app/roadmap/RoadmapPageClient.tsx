@@ -29,6 +29,8 @@ import {
   referralInviteMessage,
 } from "../../lib/referralStorage";
 import { getAnalyticsSnapshot, topKeys } from "../../lib/localAnalytics";
+import InAppFeedbackCard from "../../components/mobile/InAppFeedbackCard";
+import RateAppCard from "../../components/mobile/RateAppCard";
 
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
@@ -195,6 +197,11 @@ export default function RoadmapPageClient() {
             ) : null}
           </form>
         </section>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <RateAppCard />
+          <InAppFeedbackCard />
+        </div>
 
         <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
           <SectionTitle>Local analytics snapshot</SectionTitle>

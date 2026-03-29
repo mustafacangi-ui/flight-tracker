@@ -8,6 +8,7 @@ import MobileShell from "./mobile/MobileShell";
 import PwaInstallCoordinator from "./pwa/PwaInstallCoordinator";
 import { PwaInstallProvider } from "./pwa/PwaInstallContext";
 import ServiceWorkerRegister from "./ServiceWorkerRegister";
+import StoreOnboardingGate from "./onboarding/StoreOnboardingGate";
 import RouteWingsOnboarding from "./RouteWingsOnboarding";
 import PushPromotionHost from "./PushPromotionHost";
 import SupabaseAuthListener from "./SupabaseAuthListener";
@@ -25,6 +26,7 @@ export default function ClientAppRoot({ children }: Props) {
         <UpgradeModalProvider>
           <AnalyticsProvider>
             <CapacitorNativeBridge />
+            <StoreOnboardingGate />
             <SupabaseAuthListener />
             <MobileShell>{children}</MobileShell>
             <PushPromotionHost />

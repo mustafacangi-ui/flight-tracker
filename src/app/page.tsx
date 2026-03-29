@@ -12,6 +12,7 @@ import HomeQuickWidgets from "../components/HomeQuickWidgets";
 import HomeRecentAndTrending from "../components/HomeRecentAndTrending";
 import InstallAppCard from "../components/InstallAppCard";
 import AppStoreComingSoonCard from "../components/mobile/AppStoreComingSoonCard";
+import AppStorePreviewGallery from "../components/mobile/AppStorePreviewGallery";
 import SearchBar from "../components/SearchBar";
 import {
   AirportHeaderSkeleton,
@@ -463,6 +464,8 @@ export default function Home() {
           <InstallAppCard />
 
           <AppStoreComingSoonCard />
+
+          <AppStorePreviewGallery />
 
           <HomeGroupedFlightUpdates />
 

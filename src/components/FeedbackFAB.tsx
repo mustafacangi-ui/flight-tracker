@@ -14,7 +14,10 @@ export default function FeedbackFAB() {
 
   if (
     pathname?.startsWith("/roadmap") ||
-    pathname?.startsWith("/debug")
+    pathname?.startsWith("/debug") ||
+    pathname === "/onboarding" ||
+    pathname === "/privacy" ||
+    pathname === "/terms"
   ) {
     return null;
   }

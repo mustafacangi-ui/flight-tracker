@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence } from "framer-motion";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -22,12 +23,15 @@ import { usePwaInstallRequest } from "./PwaInstallContext";
 import PwaFloatingInstallButton from "./PwaFloatingInstallButton";
 import PwaInstallCard from "./PwaInstallCard";
 
+const HIDE_INSTALL_PATHS = new Set(["/onboarding", "/privacy", "/terms"]);
+
 function initialDismissed(key: string): boolean {
   if (typeof window === "undefined") return false;
   return readDismissed(key);
 }
 
 export default function PwaInstallCoordinator() {
+  const pathname = usePathname();
   const { installCardNonce } = usePwaInstallRequest();
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
@@ -63,12 +67,16 @@ export default function PwaInstallCoordinator() {
     return () => window.removeEventListener("beforeinstallprompt", onBip);
   }, []);
 
-  if (standalone) return null;
+  const hideInstallSurface =
+    pathname != null && HIDE_INSTALL_PATHS.has(pathname);
 
   const canPrompt = Boolean(deferredPrompt) || ios;
   const showCard =
-    (!cardDismissed || forcedCard) && (canPrompt || forcedCard);
-  const showFab = canPrompt && !fabDismissed;
+    !hideInstallSurface &&
+    (!cardDismissed || forcedCard) &&
+    (canPrompt || forcedCard);
+  const showFab =
+    !hideInstallSurface && canPrompt && !fabDismissed;
 
   useEffect(() => {
     if (showCard && !cardPromptLogged.current) {
@@ -126,6 +134,8 @@ export default function PwaInstallCoordinator() {
     setForcedCard(true);
     setCardDismissed(false);
   }, [deferredPrompt, onInstalled]);
+
+  if (standalone) return null;
 
   return (
     <>

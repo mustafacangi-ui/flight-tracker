@@ -23,6 +23,8 @@ function scrollToId(id: string) {
   });
 }
 
+const HIDE_NAV_PATHS = new Set(["/onboarding", "/privacy", "/terms"]);
+
 export default function MobileBottomNav() {
   const pathname = usePathname();
   const router = useRouter();
@@ -67,6 +69,10 @@ export default function MobileBottomNav() {
       /* ignore */
     }
   }, []);
+
+  if (pathname != null && HIDE_NAV_PATHS.has(pathname)) {
+    return null;
+  }
 
   const onTab = (id: TabId) => {
     switch (id) {
