@@ -3,6 +3,7 @@
 import AnalyticsProvider from "./AnalyticsProvider";
 import AppSplashScreen from "./AppSplashScreen";
 import CapacitorNativeBridge from "./CapacitorNativeBridge";
+import MonitoringContextSync from "./MonitoringContextSync";
 import FeedbackFAB from "./FeedbackFAB";
 import MobileShell from "./mobile/MobileShell";
 import PwaInstallCoordinator from "./pwa/PwaInstallCoordinator";
@@ -26,6 +27,7 @@ export default function ClientAppRoot({ children }: Props) {
         <UpgradeModalProvider>
           <AnalyticsProvider>
             <CapacitorNativeBridge />
+            <MonitoringContextSync />
             <StoreOnboardingGate />
             <SupabaseAuthListener />
             <MobileShell>{children}</MobileShell>

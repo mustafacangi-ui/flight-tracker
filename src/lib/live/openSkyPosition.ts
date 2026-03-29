@@ -1,3 +1,4 @@
+import { captureError } from "../monitoring/captureError";
 import { openskyCallsignCandidates, callsignRoughMatch } from "./callsignCandidates";
 import { openSkyBBoxForAirports } from "./routeBbox";
 import type { AircraftLivePosition } from "./types";
@@ -91,7 +92,12 @@ export async function tryOpenSkyLivePosition(
       cache: "no-store",
       next: { revalidate: 0 },
     });
-  } catch {
+  } catch (e) {
+    captureError(e, {
+      area: "opensky_live_position",
+      extras: { summary: "fetch failed" },
+      level: "warning",
+    });
     return null;
   }
   if (!res.ok) return null;
@@ -99,7 +105,12 @@ export async function tryOpenSkyLivePosition(
   let data: { states?: OpenSkyState[] | null };
   try {
     data = (await res.json()) as { states?: OpenSkyState[] | null };
-  } catch {
+  } catch (e) {
+    captureError(e, {
+      area: "opensky_live_position",
+      extras: { summary: "invalid JSON" },
+      level: "warning",
+    });
     return null;
   }
   const states = data.states;

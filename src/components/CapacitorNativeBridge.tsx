@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import { routewingsDeepLinkToPath } from "../lib/capacitor/deepLink";
+import { captureError } from "../lib/monitoring/captureError";
 
 export default function CapacitorNativeBridge() {
   const router = useRouter();
@@ -37,8 +38,12 @@ export default function CapacitorNativeBridge() {
       .then((res) => {
         if (res?.url) navigateFromUrl(res.url);
       })
-      .catch(() => {
-        /* ignore */
+      .catch((e) => {
+        captureError(e, {
+          area: "deep_link_parse",
+          tags: { phase: "getLaunchUrl" },
+          level: "warning",
+        });
       });
 
     void App.addListener("appUrlOpen", ({ url }) => {

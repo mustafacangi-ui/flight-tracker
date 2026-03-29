@@ -1,3 +1,4 @@
+import { captureError } from "../monitoring/captureError";
 import type { AircraftLivePosition } from "./types";
 
 function num(v: unknown): number | null {
@@ -50,7 +51,12 @@ export async function tryAviationStackLivePosition(
       source: "AviationStack",
       isLive: true,
     };
-  } catch {
+  } catch (e) {
+    captureError(e, {
+      area: "aviationstack_live_position",
+      tags: { flight: flightIata.replace(/\s+/g, "").toUpperCase().slice(0, 12) },
+      level: "warning",
+    });
     return null;
   }
 }

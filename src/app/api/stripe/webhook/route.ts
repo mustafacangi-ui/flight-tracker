@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
+import { captureError } from "../../../../lib/monitoring/captureError";
 import { subscriptionIdFromInvoice } from "../../../../lib/stripe/invoiceSubscriptionId";
 import { syncStripeSubscriptionToUser } from "../../../../lib/stripe/syncStripeSubscriptionToUser";
 import {
@@ -89,6 +90,10 @@ export async function POST(request: Request) {
     }
   } catch (err) {
     console.error("[stripe webhook] handler error", event.type, err);
+    captureError(err, {
+      area: "stripe_webhook",
+      tags: { phase: "handler", event_type: event.type },
+    });
     return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
   }
 

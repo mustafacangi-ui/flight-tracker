@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { captureError } from "../../../lib/monitoring/captureError";
 import { getAirportFids } from "../../../lib/server/airportFids";
 
 export async function GET(request: NextRequest) {
@@ -21,6 +22,13 @@ export async function GET(request: NextRequest) {
   const result = await getAirportFids(param, apiKey);
 
   if (!result.ok) {
+    if (result.status >= 500) {
+      captureError(new Error(result.error || "Airport FIDS error"), {
+        area: "api_flights",
+        tags: { airport: param, status: String(result.status) },
+        level: "warning",
+      });
+    }
     if (result.status === 429 && result.fallback) {
       return NextResponse.json(
         {

@@ -19,9 +19,15 @@ import {
   snapshotFromDetail,
 } from "../src/lib/push/flightPushEvents";
 import { sendPushNotification } from "../src/lib/push/sendPushNotification";
+import {
+  captureWorkerError,
+  initWorkerSentry,
+} from "../src/lib/monitoring/workerSentry";
 
 loadEnv({ path: resolve(process.cwd(), ".env.local") });
 loadEnv({ path: resolve(process.cwd(), ".env") });
+
+initWorkerSentry();
 
 const INTERVAL_MS = 300_000;
 
@@ -73,6 +79,10 @@ async function runCycle(): Promise<void> {
 
   if (qErr) {
     console.error(`${LOG} tracked_flights query failed`, qErr.message);
+    captureWorkerError(qErr, {
+      area: "push_worker",
+      tags: { phase: "query_tracked_flights" },
+    });
     return;
   }
 
@@ -158,7 +168,13 @@ async function runCycle(): Promise<void> {
 async function main(): Promise<void> {
   console.log(`${LOG} worker started (interval ${INTERVAL_MS} ms)`);
   const tick = () => {
-    void runCycle().catch((e) => console.error(`${LOG} cycle failed`, e));
+    void runCycle().catch((e) => {
+      console.error(`${LOG} cycle failed`, e);
+      captureWorkerError(e, {
+        area: "push_worker",
+        tags: { phase: "run_cycle" },
+      });
+    });
   };
   tick();
   setInterval(tick, INTERVAL_MS);

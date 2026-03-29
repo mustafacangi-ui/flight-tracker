@@ -6,6 +6,7 @@
  * “Sign in with Apple (Phase 1)” for the full checklist.
  */
 
+import { captureError } from "../monitoring/captureError";
 import { getOAuthRedirectToClient } from "../oauthRedirect";
 import { createBrowserSupabaseClient } from "../supabase/client";
 
@@ -54,6 +55,10 @@ export async function signInWithApple(): Promise<AppleSignInResult> {
 
   if (error) {
     console.error("[auth] Apple OAuth error", error.message);
+    captureError(new Error(error.message), {
+      area: "apple_oauth",
+      tags: { phase: "signInWithOAuth" },
+    });
     return { ok: false, error: error.message };
   }
 

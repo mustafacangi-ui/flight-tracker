@@ -1,4 +1,5 @@
 import type { AeroAirportFlight } from "../flightTypes";
+import { captureError } from "../monitoring/captureError";
 import { getRapidApiHost, rapidApiHeaders } from "./rapidApiConfig";
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -59,7 +60,13 @@ export async function getAirportFids(
       headers: rapidApiHeaders(apiKey),
       cache: "no-store",
     });
-  } catch {
+  } catch (e) {
+    captureError(e, {
+      area: "aerodatabox_airport",
+      tags: { airport: code },
+      extras: { summary: "network or fetch failure" },
+      level: "warning",
+    });
     return {
       ok: false,
       status: 502,
@@ -89,9 +96,18 @@ export async function getAirportFids(
     } catch {
       if (text) message = text.slice(0, 200);
     }
+    const status = res.status >= 400 ? res.status : 502;
+    if (status >= 500) {
+      captureError(new Error(`AeroDataBox HTTP ${status}`), {
+        area: "aerodatabox_airport",
+        tags: { airport: code, http_status: String(status) },
+        extras: { summary: message.slice(0, 120) },
+        level: "warning",
+      });
+    }
     return {
       ok: false,
-      status: res.status >= 400 ? res.status : 502,
+      status,
       error: message,
     };
   }
@@ -99,7 +115,13 @@ export async function getAirportFids(
   let data: { departures?: AeroAirportFlight[] | null; arrivals?: AeroAirportFlight[] | null };
   try {
     data = (await res.json()) as typeof data;
-  } catch {
+  } catch (e) {
+    captureError(e, {
+      area: "aerodatabox_airport",
+      tags: { airport: code },
+      extras: { summary: "invalid JSON body" },
+      level: "warning",
+    });
     return {
       ok: false,
       status: 502,

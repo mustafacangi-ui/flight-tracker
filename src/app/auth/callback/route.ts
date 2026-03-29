@@ -1,5 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import {
+  captureError,
+  captureMessage,
+} from "../../../lib/monitoring/captureError";
 import { createSupabaseRouteHandlerClient } from "../../../lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -82,6 +86,11 @@ export async function GET(request: NextRequest) {
   const supabase = createSupabaseRouteHandlerClient(request, redirect);
   if (!supabase) {
     console.error("[auth] Supabase env missing on callback route");
+    captureMessage("OAuth callback: Supabase client unavailable", {
+      area: "oauth_callback",
+      tags: { phase: "env" },
+      level: "error",
+    });
     return NextResponse.redirect(
       `${origin}/?rw_oauth_error=${encodeURIComponent("Server auth is not configured.")}`
     );
@@ -106,6 +115,13 @@ export async function GET(request: NextRequest) {
 
   if (exchangeError) {
     console.error("[auth] exchangeCodeForSession failed", exchangeError.message);
+    captureError(new Error(exchangeError.message), {
+      area: "oauth_callback",
+      tags: { phase: "exchange_code_for_session" },
+      extras: {
+        summary: "Google or Apple OAuth session exchange failed",
+      },
+    });
     return NextResponse.redirect(
       `${origin}/?rw_oauth_error=${encodeURIComponent(exchangeError.message)}`
     );

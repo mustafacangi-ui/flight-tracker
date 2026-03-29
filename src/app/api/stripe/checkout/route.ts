@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
+import { captureError } from "../../../../lib/monitoring/captureError";
 import {
   getStripeCheckoutReturnUrls,
   getStripePriceIds,
@@ -54,27 +55,40 @@ export async function POST(request: Request) {
   const stripe = new Stripe(getStripeSecretKey());
   const { successUrl, cancelUrl } = getStripeCheckoutReturnUrls();
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    customer_email: user.email ?? undefined,
-    client_reference_id: user.id,
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${successUrl}${successUrl.includes("?") ? "&" : "?"}session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: cancelUrl,
-    metadata: {
-      supabase_user_id: user.id,
-      user_email: user.email ?? "",
-      selected_plan: plan,
-    },
-    subscription_data: {
+  let session: Stripe.Response<Stripe.Checkout.Session>;
+  try {
+    session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer_email: user.email ?? undefined,
+      client_reference_id: user.id,
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${successUrl}${successUrl.includes("?") ? "&" : "?"}session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: cancelUrl,
       metadata: {
         supabase_user_id: user.id,
         user_email: user.email ?? "",
         selected_plan: plan,
       },
-    },
-    allow_promotion_codes: true,
-  });
+      subscription_data: {
+        metadata: {
+          supabase_user_id: user.id,
+          user_email: user.email ?? "",
+          selected_plan: plan,
+        },
+      },
+      allow_promotion_codes: true,
+    });
+  } catch (e) {
+    captureError(e, {
+      area: "stripe_checkout",
+      tags: { plan },
+      extras: { user_id: user.id },
+    });
+    return NextResponse.json(
+      { error: "Could not start checkout session" },
+      { status: 500 }
+    );
+  }
 
   if (!session.url) {
     return NextResponse.json(

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getAircraftLivePosition } from "../../../../lib/live/getAircraftLivePosition";
+import { captureError } from "../../../../lib/monitoring/captureError";
 
 export const runtime = "nodejs";
 
@@ -26,7 +27,13 @@ export async function GET(request: NextRequest) {
       arrivalAirportCode: arr,
     });
     return NextResponse.json(result);
-  } catch {
+  } catch (e) {
+    captureError(e, {
+      area: "live_radar",
+      tags: { flight: flight.slice(0, 12) },
+      extras: { summary: "getAircraftLivePosition threw" },
+      level: "warning",
+    });
     return NextResponse.json(
       { position: null, regionalLabel: null },
       { status: 200 }

@@ -9,6 +9,7 @@ import {
   AnalyticsEvents,
   trackProductEvent,
 } from "../lib/analytics/telemetry";
+import { captureError } from "../lib/monitoring/captureError";
 import { grantClientPremiumTier } from "../lib/premiumSyncClient";
 import { PREMIUM_MODAL_FEATURES } from "../lib/premiumTier";
 import { createBrowserSupabaseClient } from "../lib/supabase/client";
@@ -139,6 +140,11 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
         }
         throw new Error("No checkout URL returned");
       } catch (e) {
+        captureError(e, {
+          area: "stripe_checkout_client",
+          tags: { plan },
+          extras: { summary: "checkout start failed" },
+        });
         trackProductEvent(AnalyticsEvents.stripe_payment_failed, {
           phase: "checkout_start",
           has_message: e instanceof Error && Boolean(e.message),

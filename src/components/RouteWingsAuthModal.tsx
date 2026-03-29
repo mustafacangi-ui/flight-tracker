@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useId, useState } from "react";
 
 import { signInWithApple } from "../lib/auth/appleLogin";
+import { captureError } from "../lib/monitoring/captureError";
 import {
   AnalyticsEvents,
   trackProductEvent,
@@ -305,6 +306,10 @@ export default function RouteWingsAuthModal({
       });
       if (error) {
         console.error("[auth] Google OAuth error", error.message);
+        captureError(new Error(error.message), {
+          area: "google_oauth",
+          tags: { phase: "signInWithOAuth" },
+        });
         setOauthError(error.message);
         setOauthLoading(null);
         return;
@@ -323,6 +328,10 @@ export default function RouteWingsAuthModal({
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Something went wrong.";
       console.error("[auth] Google OAuth exception", e);
+      captureError(e, {
+        area: "google_oauth",
+        tags: { phase: "exception" },
+      });
       setOauthError(msg);
       setOauthLoading(null);
     }
@@ -342,6 +351,10 @@ export default function RouteWingsAuthModal({
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Something went wrong.";
       console.error("[auth] Apple OAuth exception", e);
+      captureError(e, {
+        area: "apple_oauth",
+        tags: { phase: "exception" },
+      });
       setOauthError(msg);
       setOauthLoading(null);
     }
