@@ -1,7 +1,10 @@
 /**
- * OAuth redirect URL registered in Supabase (Authentication → URL configuration):
+ * OAuth redirect URL registered in Supabase (Authentication → URL configuration).
+ * Used by Google, Apple, and any other `signInWithOAuth` providers:
  * - http://localhost:3000/auth/callback
  * - https://www.fiyatrotasi.com/auth/callback
+ *
+ * Apple Developer “Return URLs” / Services ID must match the same callback URL.
  *
  * `NEXT_PUBLIC_SITE_URL` (optional): canonical site origin. Used for callback
  * only when its hostname matches the current page (after stripping `www.`), so

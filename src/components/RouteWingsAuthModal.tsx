@@ -3,8 +3,9 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useId, useState } from "react";
 
-import { createBrowserSupabaseClient } from "../lib/supabase/client";
+import { signInWithApple } from "../lib/auth/appleLogin";
 import { getOAuthRedirectToClient } from "../lib/oauthRedirect";
+import { createBrowserSupabaseClient } from "../lib/supabase/client";
 
 type AuthMethod = "email" | "magic";
 
@@ -26,7 +27,7 @@ type Props = {
   intent?: "login" | "signup";
 };
 
-function GoogleButtonSpinner({ className = "h-5 w-5" }: { className?: string }) {
+function OAuthButtonSpinner({ className = "h-5 w-5" }: { className?: string }) {
   return (
     <svg
       className={`animate-spin text-slate-300 ${className}`}
@@ -71,6 +72,22 @@ function GoogleIcon() {
         fill="#1976D2"
         d="M43.6 20.5H42V20H24v8h11.3c-1.1 3.2-3.4 5.7-6.2 7.4l6.2 5.2C39 37.1 44 31.1 44 24c0-1.3-.1-2.3-.4-3.5Z"
       />
+    </svg>
+  );
+}
+
+/** Apple mark — monochrome on dark (align with Apple marketing guidelines). */
+function AppleIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className="text-white"
+      aria-hidden
+    >
+      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
     </svg>
   );
 }
@@ -214,8 +231,10 @@ export default function RouteWingsAuthModal({
   const [displayName, setDisplayName] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [googleError, setGoogleError] = useState<string | null>(null);
+  const [oauthLoading, setOauthLoading] = useState<"google" | "apple" | null>(
+    null
+  );
+  const [oauthError, setOauthError] = useState<string | null>(null);
   const [pushOpen, setPushOpen] = useState(false);
   const [notifPermission, setNotifPermission] = useState<
     NotificationPermission | "unsupported"
@@ -223,14 +242,14 @@ export default function RouteWingsAuthModal({
 
   const titleId = useId();
 
-  const authBusy = googleLoading;
+  const authBusy = oauthLoading !== null;
 
   useEffect(() => {
     if (!open) {
       setPushOpen(false);
       setFormError(null);
-      setGoogleLoading(false);
-      setGoogleError(null);
+      setOauthLoading(null);
+      setOauthError(null);
       return;
     }
     if (typeof Notification === "undefined") {
@@ -242,15 +261,15 @@ export default function RouteWingsAuthModal({
 
   const handleGoogleOAuth = useCallback(async () => {
     onDismissOauthReturnError?.();
-    setGoogleError(null);
+    setOauthError(null);
     const supabase = createBrowserSupabaseClient();
     if (!supabase) {
-      setGoogleError(
+      setOauthError(
         "Sign-in is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY."
       );
       return;
     }
-    setGoogleLoading(true);
+    setOauthLoading("google");
     try {
       const redirectTo = getOAuthRedirectToClient();
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
@@ -268,14 +287,15 @@ export default function RouteWingsAuthModal({
         NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL ?? "(unset)",
         NEXT_PUBLIC_SUPABASE_HOST: supabaseHost,
       });
+      console.log("[auth] google redirectTo", redirectTo);
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo },
       });
       if (error) {
-        console.error("[auth] signInWithOAuth error", error.message);
-        setGoogleError(error.message);
-        setGoogleLoading(false);
+        console.error("[auth] Google OAuth error", error.message);
+        setOauthError(error.message);
+        setOauthLoading(null);
         return;
       }
       let providerUrlHost: string | null = null;
@@ -286,14 +306,32 @@ export default function RouteWingsAuthModal({
           providerUrlHost = "(parse error)";
         }
       }
-      console.log("[auth] signInWithOAuth OK → navigate to provider", {
+      console.log("[auth] Google OAuth success → navigate to provider", {
         providerUrlHost,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Something went wrong.";
-      console.error("[auth] signInWithOAuth exception", e);
-      setGoogleError(msg);
-      setGoogleLoading(false);
+      console.error("[auth] Google OAuth exception", e);
+      setOauthError(msg);
+      setOauthLoading(null);
+    }
+  }, [onDismissOauthReturnError]);
+
+  const handleAppleOAuth = useCallback(async () => {
+    onDismissOauthReturnError?.();
+    setOauthError(null);
+    setOauthLoading("apple");
+    try {
+      const result = await signInWithApple();
+      if (!result.ok) {
+        setOauthError(result.error);
+        setOauthLoading(null);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Something went wrong.";
+      console.error("[auth] Apple OAuth exception", e);
+      setOauthError(msg);
+      setOauthLoading(null);
     }
   }, [onDismissOauthReturnError]);
 
@@ -345,7 +383,7 @@ export default function RouteWingsAuthModal({
     <>
       <AnimatePresence>
         {open ? (
-          <div className="fixed inset-0 z-[200] flex min-h-screen items-center justify-center bg-slate-950 p-6">
+          <div className="fixed inset-0 z-[200] flex min-h-screen items-center justify-center bg-slate-950 p-4 sm:p-6">
             <motion.button
               type="button"
               aria-label="Close sign-in"
@@ -359,7 +397,7 @@ export default function RouteWingsAuthModal({
               role="dialog"
               aria-modal="true"
               aria-labelledby={titleId}
-              className="relative z-[201] w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900 p-6 text-white shadow-2xl sm:p-8"
+              className="relative z-[201] w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900 p-5 text-white shadow-2xl sm:p-8"
               initial={{ opacity: 0, scale: 0.98, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.98, y: 6 }}
@@ -371,16 +409,16 @@ export default function RouteWingsAuthModal({
                   setPushOpen(false);
                   onClose();
                 }}
-                className="absolute right-5 top-5 z-10 text-2xl leading-none text-slate-400 transition hover:text-white"
+                className="absolute right-4 top-4 z-10 text-2xl leading-none text-slate-400 transition hover:text-white sm:right-5 sm:top-5"
                 aria-label="Close"
               >
                 ×
               </button>
 
-              <div className="mb-6 pr-8">
+              <div className="mb-5 pr-8 sm:mb-6">
                 <h1
                   id={titleId}
-                  className="text-3xl font-bold tracking-tight text-white"
+                  className="text-2xl font-bold tracking-tight text-white sm:text-3xl"
                 >
                   {intent === "login"
                     ? "Welcome back"
@@ -393,25 +431,58 @@ export default function RouteWingsAuthModal({
                 </p>
               </div>
 
-              <button
-                type="button"
-                disabled={authBusy}
-                onClick={() => void handleGoogleOAuth()}
-                className="flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-700 bg-slate-800 p-4 text-base font-medium transition hover:bg-slate-700 disabled:pointer-events-none disabled:opacity-45"
-              >
-                {googleLoading ? <GoogleButtonSpinner /> : <GoogleIcon />}
-                Continue with Google
-              </button>
-              {googleError || oauthReturnError ? (
+              <div className="relative mb-4 flex items-center justify-center sm:mb-5">
+                <div className="absolute inset-x-0 border-t border-slate-700" />
+                <span className="relative bg-slate-900 px-3 text-xs font-medium uppercase tracking-[0.2em] text-slate-500 sm:text-sm sm:normal-case sm:tracking-normal sm:text-slate-500">
+                  Continue with
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  disabled={authBusy}
+                  onClick={() => void handleGoogleOAuth()}
+                  className="flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-700 bg-slate-800 p-4 text-base font-medium transition hover:bg-slate-700 disabled:pointer-events-none disabled:opacity-45"
+                >
+                  {oauthLoading === "google" ? (
+                    <OAuthButtonSpinner />
+                  ) : (
+                    <GoogleIcon />
+                  )}
+                  Google
+                </button>
+
+                <div>
+                  <button
+                    type="button"
+                    disabled={authBusy}
+                    onClick={() => void handleAppleOAuth()}
+                    className="flex w-full items-center justify-center gap-3 rounded-2xl border border-white/10 bg-black p-4 text-base font-medium text-white shadow-[0_0_24px_rgba(37,99,235,0.12)] ring-1 ring-white/5 transition hover:bg-neutral-950 hover:ring-white/10 disabled:pointer-events-none disabled:opacity-45"
+                  >
+                    {oauthLoading === "apple" ? (
+                      <OAuthButtonSpinner className="h-5 w-5 text-white/80" />
+                    ) : (
+                      <AppleIcon />
+                    )}
+                    Apple
+                  </button>
+                  <p className="mt-2 px-1 text-center text-[11px] leading-snug text-slate-500 sm:text-xs">
+                    Apple may hide your email address
+                  </p>
+                </div>
+              </div>
+
+              {oauthError || oauthReturnError ? (
                 <p
-                  className="mt-2 text-center text-xs leading-snug text-red-400/95"
+                  className="mt-3 text-center text-xs leading-snug text-red-400/95"
                   role="alert"
                 >
-                  {googleError || oauthReturnError}
+                  {oauthError || oauthReturnError}
                 </p>
               ) : null}
 
-              <div className="relative my-5 flex items-center justify-center">
+              <div className="relative my-5 flex items-center justify-center sm:my-6">
                 <div className="absolute inset-x-0 border-t border-slate-700" />
                 <span className="relative bg-slate-900 px-4 text-sm text-slate-500">
                   or
@@ -474,7 +545,7 @@ export default function RouteWingsAuthModal({
                     placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-700 bg-slate-800 px-4 py-4 text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500"
+                    className="w-full rounded-2xl border border-slate-700 bg-slate-800 px-4 py-3.5 text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 sm:py-4"
                   />
                 </div>
 
@@ -492,7 +563,7 @@ export default function RouteWingsAuthModal({
                     placeholder="e.g. Mustafa"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-700 bg-slate-800 px-4 py-4 text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500"
+                    className="w-full rounded-2xl border border-slate-700 bg-slate-800 px-4 py-3.5 text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 sm:py-4"
                   />
                 </div>
 
@@ -520,7 +591,7 @@ export default function RouteWingsAuthModal({
                   type="button"
                   disabled={authBusy}
                   onClick={handleContinue}
-                  className="w-full rounded-2xl bg-blue-600 py-4 text-lg font-semibold text-white shadow-lg shadow-blue-900/30 transition hover:bg-blue-500 disabled:pointer-events-none disabled:opacity-45"
+                  className="w-full rounded-2xl bg-blue-600 py-3.5 text-lg font-semibold text-white shadow-lg shadow-blue-900/30 transition hover:bg-blue-500 disabled:pointer-events-none disabled:opacity-45 sm:py-4"
                 >
                   Continue to RouteWings ✈️
                 </button>
