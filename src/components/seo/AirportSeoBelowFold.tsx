@@ -1,3 +1,4 @@
+import { BlogRelatedForAirport } from "../blog/BlogContextRelated";
 import {
   getAirportSeoMeta,
   routesTouchingAirport,
@@ -186,6 +187,8 @@ export default function AirportSeoBelowFold({ airportCode }: Props) {
             links={airlineLinks}
             className="mt-6"
           />
+
+          <BlogRelatedForAirport airportCode={code} />
 
           <SeoFaqSection items={faqs} />
         </article>

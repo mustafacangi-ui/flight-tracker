@@ -31,3 +31,38 @@ export function faqPageSchema(faqs: FaqItem[]) {
     })),
   };
 }
+
+export function articleSchema(args: {
+  headline: string;
+  description: string;
+  pagePath: string;
+  datePublished: string;
+  dateModified?: string;
+  imagePath: string;
+  authorName: string;
+}) {
+  const url = absoluteUrl(args.pagePath);
+  const imageUrl = absoluteUrl(args.imagePath);
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: args.headline,
+    description: args.description,
+    image: [imageUrl],
+    datePublished: args.datePublished,
+    dateModified: args.dateModified ?? args.datePublished,
+    author: {
+      "@type": "Person",
+      name: args.authorName,
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "RouteWings / FiyatRotasi",
+      url: absoluteUrl("/"),
+    },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": url,
+    },
+  };
+}

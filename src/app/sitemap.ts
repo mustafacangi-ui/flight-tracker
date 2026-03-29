@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 
+import { getAllSlugs } from "../lib/blog/posts";
 import {
   SEO_AIRLINE_IATA,
   SEO_AIRPORT_CODES,
@@ -16,9 +17,20 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const entries: MetadataRoute.Sitemap = staticPaths.map((path) => ({
     url: `${base}${path || "/"}`,
     lastModified: now,
-    changeFrequency: path === "" ? "daily" : "weekly",
-    priority: path === "" ? 1 : 0.85,
+    changeFrequency:
+      path === "" ? "daily" : path === "/blog" ? "daily" : "weekly",
+    priority:
+      path === "" ? 1 : path === "/blog" ? 0.92 : 0.85,
   }));
+
+  for (const slug of getAllSlugs()) {
+    entries.push({
+      url: `${base}/blog/${slug}`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.65,
+    });
+  }
 
   for (const code of SEO_AIRPORT_CODES) {
     entries.push({

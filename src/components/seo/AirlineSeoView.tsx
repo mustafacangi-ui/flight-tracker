@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { BlogRelatedForAirline } from "../blog/BlogContextRelated";
 import {
   getAirlineSeoMeta,
   routesForAirline,
@@ -164,6 +165,8 @@ export default function AirlineSeoView({ iata }: Props) {
             links={airportLinks}
             className="mt-6"
           />
+
+          <BlogRelatedForAirline iata={code} />
 
           <SeoFaqSection items={faqs} />
         </article>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { BlogRelatedForRoute } from "../blog/BlogContextRelated";
 import {
   getAirportSeoMeta,
   getRouteSeoMeta,
@@ -145,6 +146,8 @@ export default function RouteSeoView({ origin, dest }: Props) {
           </SeoContentSection>
 
           <SeoRelatedLinks title="Continue exploring" links={links} />
+
+          <BlogRelatedForRoute origin={o} dest={d} />
 
           <SeoFaqSection items={faqs} />
         </article>
