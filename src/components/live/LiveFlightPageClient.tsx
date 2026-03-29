@@ -7,6 +7,7 @@ import LiveFlightHeader from "./LiveFlightHeader";
 import LiveFlightMapLazy from "./LiveFlightMapLazy";
 import LiveFlightProgressCard from "./LiveFlightProgressCard";
 import LiveFlightStatsCard from "./LiveFlightStatsCard";
+import FlightWeatherSection from "../weather/FlightWeatherSection";
 import { effectiveProgressPercent } from "../FlightProgress";
 import type { FlightDetail } from "../../lib/flightDetailsTypes";
 
@@ -96,6 +97,17 @@ export default function LiveFlightPageClient({ detail, found }: Props) {
           />
           <LiveFlightProgressCard detail={detail} />
           <LiveFlightStatsCard detail={detail} />
+          <FlightWeatherSection
+            compact
+            departureAirportCode={detail.departureAirportCode}
+            arrivalAirportCode={detail.arrivalAirportCode}
+            departureLabel={
+              detail.departureCity ?? detail.departureAirportName ?? undefined
+            }
+            arrivalLabel={
+              detail.arrivalCity ?? detail.arrivalAirportName ?? undefined
+            }
+          />
           <p className="px-1 text-center text-[11px] leading-relaxed text-slate-600">
             Map position is simulated from schedule progress. Always confirm
             with {detail.airlineName ?? "the airline"}.

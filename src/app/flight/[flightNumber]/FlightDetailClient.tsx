@@ -24,6 +24,7 @@ import PremiumBadge from "../../../components/PremiumBadge";
 import FlightHeroDashboard from "../../../components/flight/FlightHeroDashboard";
 import FlightLiveRouteMapSection from "../../../components/flight/FlightLiveRouteMapSection";
 import PremiumLiveMapTeaser from "../../../components/flight/PremiumLiveMapTeaser";
+import FlightWeatherSection from "../../../components/weather/FlightWeatherSection";
 import FlightWalletEventTimeline from "../../../components/flight/FlightWalletEventTimeline";
 import FlightProgress from "../../../components/FlightProgress";
 import FlightTimeline from "../../../components/FlightTimeline";
@@ -239,6 +240,17 @@ export default function FlightDetailClient({ detail, found }: Props) {
                 motionIndex={1}
               />
             </div>
+
+            <FlightWeatherSection
+              departureAirportCode={flight.departureAirportCode}
+              arrivalAirportCode={flight.arrivalAirportCode}
+              departureLabel={
+                flight.departureCity ?? flight.departureAirportName ?? undefined
+              }
+              arrivalLabel={
+                flight.arrivalCity ?? flight.arrivalAirportName ?? undefined
+              }
+            />
 
             <AircraftInfoCard
               aircraftType={flight.aircraftType}

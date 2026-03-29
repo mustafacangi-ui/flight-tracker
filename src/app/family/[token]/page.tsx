@@ -5,6 +5,7 @@ import FamilyAirportCard from "../../../components/family/FamilyAirportCard";
 import FamilyHeaderCard from "../../../components/family/FamilyHeaderCard";
 import FamilyLiveMapSection from "../../../components/family/FamilyLiveMapSection";
 import FamilyShareCard from "../../../components/family/FamilyShareCard";
+import FlightWeatherSection from "../../../components/weather/FlightWeatherSection";
 import FamilyStatusCard from "../../../components/family/FamilyStatusCard";
 import { mergeAircraftTailIntelligence } from "../../../lib/aircraftTailFallbacks";
 import { mergeFlightDetailWithFallbacks } from "../../../lib/flightDetailFallbacks";
@@ -129,6 +130,13 @@ export default async function FamilyTrackingPage({
             departureCity={depCity}
             arrivalCity={arrCity}
             isNight={isNight}
+          />
+          <FlightWeatherSection
+            compact
+            departureAirportCode={detail.departureAirportCode}
+            arrivalAirportCode={detail.arrivalAirportCode}
+            departureLabel={depCity}
+            arrivalLabel={arrCity}
           />
           <FamilyShareCard
             pageUrl={pageUrl}
