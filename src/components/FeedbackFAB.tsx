@@ -37,7 +37,7 @@ export default function FeedbackFAB() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom,0px))] right-3 z-[120] rounded-full border border-violet-500/35 bg-violet-600/90 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-white shadow-lg shadow-violet-900/40 backdrop-blur-md transition hover:bg-violet-500 md:bottom-6 md:right-6"
+        className="fixed bottom-[calc(6.125rem+env(safe-area-inset-bottom,0px)+0.5rem)] right-3 z-[120] rounded-full border border-violet-500/35 bg-violet-600/90 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-white shadow-lg shadow-violet-900/40 backdrop-blur-md transition hover:bg-violet-500 md:bottom-6 md:right-6"
       >
         Suggest a feature
       </button>
@@ -58,7 +58,7 @@ export default function FeedbackFAB() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="feedback-fab-title"
-              className="fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom,0px))] right-3 z-[191] w-[min(92vw,20rem)] rounded-2xl border border-white/10 bg-gray-950/95 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl md:bottom-24 md:right-6"
+              className="fixed bottom-[calc(7rem+env(safe-area-inset-bottom,0px)+0.5rem)] right-3 z-[191] w-[min(92vw,20rem)] rounded-2xl border border-white/10 bg-gray-950/95 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl md:bottom-24 md:right-6"
               initial={{ opacity: 0, y: 12, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.98 }}

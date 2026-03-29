@@ -69,6 +69,10 @@ export default function InstallAppCard() {
       <p className="mt-1.5 text-xs leading-relaxed text-gray-400">
         Get faster access and live updates directly from your home screen.
       </p>
+      <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
+        Download RouteWings on iPhone and Android soon — for now, use Add to
+        Home Screen for an app-like experience.
+      </p>
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
         <button
           type="button"

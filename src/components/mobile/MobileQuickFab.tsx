@@ -66,7 +66,7 @@ export default function MobileQuickFab() {
 
   return (
     <div
-      className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] right-4 z-40 md:hidden"
+      className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px)+0.5rem)] right-4 z-40 md:hidden"
       ref={panelRef}
     >
       {open ? (

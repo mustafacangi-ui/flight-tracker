@@ -12,7 +12,7 @@ export default function MobileShell({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <div className="flex min-h-full flex-col pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] md:pb-0">
+      <div className="flex min-h-full flex-col pb-[calc(5.5rem+env(safe-area-inset-bottom,0px)+0.5rem)] md:pb-0">
         <AnimatePresence mode="wait">
           <motion.div
             key={pathname}

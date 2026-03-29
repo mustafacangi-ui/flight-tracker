@@ -2,6 +2,7 @@
 
 import AnalyticsProvider from "./AnalyticsProvider";
 import AppSplashScreen from "./AppSplashScreen";
+import CapacitorNativeBridge from "./CapacitorNativeBridge";
 import FeedbackFAB from "./FeedbackFAB";
 import MobileShell from "./mobile/MobileShell";
 import PwaInstallCoordinator from "./pwa/PwaInstallCoordinator";
@@ -23,6 +24,7 @@ export default function ClientAppRoot({ children }: Props) {
       <AppSplashScreen>
         <UpgradeModalProvider>
           <AnalyticsProvider>
+            <CapacitorNativeBridge />
             <SupabaseAuthListener />
             <MobileShell>{children}</MobileShell>
             <PushPromotionHost />

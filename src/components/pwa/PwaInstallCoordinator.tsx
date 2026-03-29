@@ -129,7 +129,7 @@ export default function PwaInstallCoordinator() {
 
   return (
     <>
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[80] flex justify-center px-3 pb-[calc(5.25rem+env(safe-area-inset-bottom,0px)+0.5rem)] md:pb-6">
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[80] flex justify-center px-3 pb-[calc(5.75rem+env(safe-area-inset-bottom,0px)+0.625rem)] md:pb-6">
         <AnimatePresence>
           {showCard ? (
             <div className="pointer-events-auto w-full max-w-lg">

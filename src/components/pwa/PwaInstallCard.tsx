@@ -122,6 +122,9 @@ export default function PwaInstallCard({
               </>
             )}
           </p>
+          <p className="mt-2 text-xs leading-relaxed text-slate-500">
+            Download RouteWings on iPhone and Android soon.
+          </p>
           {!iosHint && deferredPrompt ? (
             <button
               type="button"

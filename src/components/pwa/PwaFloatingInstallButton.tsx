@@ -17,7 +17,7 @@ export default function PwaFloatingInstallButton({
 
   return (
     <motion.div
-      className="pointer-events-auto fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom,0px))] right-4 z-[85] flex flex-col items-end gap-2 md:hidden"
+      className="pointer-events-auto fixed bottom-[calc(6.125rem+env(safe-area-inset-bottom,0px))] right-4 z-[85] flex flex-col items-end gap-2 md:hidden"
       initial={{ opacity: 0, scale: 0.85, y: 10 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.9, y: 8 }}
