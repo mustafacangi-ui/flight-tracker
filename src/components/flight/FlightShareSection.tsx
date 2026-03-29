@@ -85,6 +85,25 @@ export default function FlightShareSection({
   const trackUrl = flightRadar24Url(flightNumber);
 
   const copyFamilyLink = useCallback(async () => {
+    try {
+      const res = await fetch("/api/family/links", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ flightNumber }),
+      });
+      if (res.ok) {
+        const body = (await res.json()) as { shareUrl?: string };
+        if (body.shareUrl) {
+          await navigator.clipboard.writeText(body.shareUrl);
+          setFamilyCopied(true);
+          window.setTimeout(() => setFamilyCopied(false), 2800);
+          return;
+        }
+      }
+    } catch {
+      /* fall through */
+    }
     const slug = flightNumber.replace(/\s+/g, "").toLowerCase();
     const url =
       typeof window !== "undefined"
