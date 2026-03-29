@@ -1,9 +1,14 @@
-const CACHE_NAME = "flight-tracker-v1";
+const CACHE_NAME = "routewings-pwa-v2";
 
+/** Shell URLs to precache (dynamic routes like /family/[token] populate on visit). */
 const PRECACHE_URLS = [
   "/",
+  "/saved",
+  "/premium",
+  "/premium/success",
   "/offline",
   "/manifest.json",
+  "/favicon.ico",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
   "/icons/apple-touch-icon.png",
@@ -28,7 +33,16 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys.map((key) => (key !== CACHE_NAME ? caches.delete(key) : null))
+        )
+      )
+      .then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener("push", (event) => {
@@ -41,7 +55,6 @@ self.addEventListener("push", (event) => {
       }
     }
   } catch {
-    /* plain text */
     try {
       const t = event.data?.text();
       if (t) payload = { ...payload, body: t };
@@ -87,17 +100,15 @@ self.addEventListener("fetch", (event) => {
           }
           return res;
         })
-        .catch(() => {
-          const offlineReq = new URL("/offline", self.location.origin);
-          return caches
-            .match(req)
-            .then(
-              (hit) =>
-                hit ||
-                caches.match(offlineReq.pathname) ||
-                caches.match(offlineReq.href)
+        .catch(() =>
+          caches.match(req).then((hit) => {
+            if (hit) return hit;
+            return Response.redirect(
+              new URL("/offline", self.location.origin).href,
+              302
             );
-        })
+          })
+        )
     );
     return;
   }
@@ -122,12 +133,7 @@ self.addEventListener("fetch", (event) => {
           }
           return res;
         })
-        .catch(() => {
-          const offlineReq = new URL("/offline", self.location.origin);
-          return (
-            caches.match(offlineReq.pathname) || caches.match(offlineReq.href)
-          );
-        });
+        .catch(() => caches.match(req));
     })
   );
 });

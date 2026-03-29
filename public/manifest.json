@@ -1,12 +1,13 @@
 {
-  "name": "Flight Tracker",
-  "short_name": "Flight Tracker",
-  "description": "Track flights, airports, aircraft history, delays, and live family updates.",
+  "name": "RouteWings Flight Tracker",
+  "short_name": "RouteWings",
+  "description": "RouteWings — track flights, airports, delays, family updates, and premium live maps.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#020817",
-  "theme_color": "#2563eb",
-  "orientation": "portrait",
+  "background_color": "#030712",
+  "theme_color": "#172554",
+  "orientation": "portrait-primary",
   "icons": [
     {
       "src": "/icons/icon-192.png",

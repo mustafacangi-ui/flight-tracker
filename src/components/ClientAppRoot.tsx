@@ -4,6 +4,8 @@ import AnalyticsProvider from "./AnalyticsProvider";
 import AppSplashScreen from "./AppSplashScreen";
 import FeedbackFAB from "./FeedbackFAB";
 import MobileShell from "./mobile/MobileShell";
+import PwaInstallCoordinator from "./pwa/PwaInstallCoordinator";
+import { PwaInstallProvider } from "./pwa/PwaInstallContext";
 import ServiceWorkerRegister from "./ServiceWorkerRegister";
 import RouteWingsOnboarding from "./RouteWingsOnboarding";
 import PushPromotionHost from "./PushPromotionHost";
@@ -16,7 +18,7 @@ type Props = {
 
 export default function ClientAppRoot({ children }: Props) {
   return (
-    <>
+    <PwaInstallProvider>
       <ServiceWorkerRegister />
       <AppSplashScreen>
         <UpgradeModalProvider>
@@ -29,6 +31,7 @@ export default function ClientAppRoot({ children }: Props) {
           </AnalyticsProvider>
         </UpgradeModalProvider>
       </AppSplashScreen>
-    </>
+      <PwaInstallCoordinator />
+    </PwaInstallProvider>
   );
 }

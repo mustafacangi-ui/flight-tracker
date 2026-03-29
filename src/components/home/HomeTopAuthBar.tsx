@@ -4,6 +4,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
+import PwaPostLoginInstallBanner from "../pwa/PwaPostLoginInstallBanner";
+import { usePwaInstallRequest } from "../pwa/PwaInstallContext";
 import RouteWingsAuthModal from "../RouteWingsAuthModal";
 import { useUpgradeModal } from "../UpgradeModalProvider";
 import { usePremiumFlag } from "../../hooks/usePremiumFlag";
@@ -55,6 +57,7 @@ function ProfileIcon({ className = "" }: { className?: string }) {
 
 export default function HomeTopAuthBar() {
   const menuId = useId();
+  const { requestInstallCard } = usePwaInstallRequest();
   const { openUpgrade } = useUpgradeModal();
   const premium = usePremiumFlag();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -295,6 +298,20 @@ export default function HomeTopAuthBar() {
                           role="menuitem"
                           onClick={() => {
                             setMenuOpen(false);
+                            requestInstallCard();
+                          }}
+                          className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm text-gray-200 transition hover:bg-white/[0.06] hover:text-white"
+                        >
+                          <span>Install app</span>
+                          <span className="shrink-0 rounded-md border border-sky-500/35 bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-sky-200/95">
+                            PWA
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setMenuOpen(false);
                             openUpgrade();
                           }}
                           className="w-full px-4 py-2.5 text-left text-sm font-medium text-blue-300 transition hover:bg-blue-500/10 hover:text-blue-200"
@@ -318,6 +335,8 @@ export default function HomeTopAuthBar() {
           </div>
         </div>
       </header>
+
+      <PwaPostLoginInstallBanner />
 
       <RouteWingsAuthModal
         open={authOpen}

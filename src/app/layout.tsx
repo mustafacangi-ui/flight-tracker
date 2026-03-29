@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 const canonicalDescription =
-  "Track flights, airports, aircraft history, delays, and live family updates.";
+  "RouteWings — track flights, airports, aircraft history, delays, and live family updates.";
 
 function siteUrl(): URL {
   const fromEnv = process.env.NEXT_PUBLIC_SITE_URL?.trim();
@@ -35,11 +35,11 @@ function siteUrl(): URL {
 export const metadata: Metadata = {
   metadataBase: siteUrl(),
   title: {
-    default: "Flight Tracker — Live Airport & Flight Status",
-    template: "%s | Flight Tracker",
+    default: "RouteWings Flight Tracker — Live Airport & Flight Status",
+    template: "%s | RouteWings",
   },
   description: canonicalDescription,
-  applicationName: "Flight Tracker",
+  applicationName: "RouteWings Flight Tracker",
   manifest: "/manifest.json",
   icons: {
     icon: [
@@ -67,33 +67,42 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    siteName: "Flight Tracker",
-    title: "Flight Tracker — Live Airport & Flight Status",
+    siteName: "RouteWings Flight Tracker",
+    title: "RouteWings Flight Tracker — Live Airport & Flight Status",
     description: canonicalDescription,
     images: [
       {
         url: "/icons/icon-512.png",
         width: 512,
         height: 512,
-        alt: "Flight Tracker",
+        alt: "RouteWings Flight Tracker",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Flight Tracker — Live Airport & Flight Status",
+    title: "RouteWings Flight Tracker — Live Airport & Flight Status",
     description: canonicalDescription,
     images: ["/icons/icon-512.png"],
   },
   appleWebApp: {
     capable: true,
-    title: "Flight Tracker",
+    title: "RouteWings",
     statusBarStyle: "black-translucent",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#2563eb",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#172554" },
+    { media: "(prefers-color-scheme: light)", color: "#172554" },
+  ],
   colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
