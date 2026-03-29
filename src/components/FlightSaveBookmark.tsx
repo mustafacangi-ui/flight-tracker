@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useSavedFlights } from "../hooks/useSavedFlights";
 import { trackEvent } from "../lib/localAnalytics";
+import { dispatchFlightSavedEvent } from "../lib/pushEvents";
 import {
   isFlightSaved,
   type SavedFlight,
@@ -46,6 +47,7 @@ export default function FlightSaveBookmark({ payload, className = "" }: Props) {
         const { saved } = toggle({ ...payload, timestamp: Date.now() });
         if (saved) {
           trackEvent("save_flight", { flightNumber: payload.flightNumber });
+          dispatchFlightSavedEvent();
         }
       }}
       aria-pressed={saved}

@@ -6,6 +6,7 @@ import FeedbackFAB from "./FeedbackFAB";
 import MobileShell from "./mobile/MobileShell";
 import ServiceWorkerRegister from "./ServiceWorkerRegister";
 import RouteWingsOnboarding from "./RouteWingsOnboarding";
+import PushPromotionHost from "./PushPromotionHost";
 import SupabaseAuthListener from "./SupabaseAuthListener";
 import { UpgradeModalProvider } from "./UpgradeModalProvider";
 
@@ -22,6 +23,7 @@ export default function ClientAppRoot({ children }: Props) {
           <AnalyticsProvider>
             <SupabaseAuthListener />
             <MobileShell>{children}</MobileShell>
+            <PushPromotionHost />
             <RouteWingsOnboarding />
             <FeedbackFAB />
           </AnalyticsProvider>

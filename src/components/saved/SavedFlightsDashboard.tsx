@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import EnablePushNotificationsCard from "../EnablePushNotificationsCard";
 import FlightCardLiveRow from "../FlightCardLiveRow";
+import FlightNotificationToggle from "../FlightNotificationToggle";
 import { useQuickAccess } from "../../hooks/useQuickAccess";
 import { isPremiumUser } from "../../lib/premiumTier";
 import type { SavedFlight } from "../../lib/quickAccessStorage";
@@ -200,6 +202,7 @@ function SavedFlightCard({
           destLabel={tctx.destLabel}
           estimatedArrivalHm={tctx.estimatedArrivalHm}
         />
+        <FlightNotificationToggle flight={f} />
         <button
           type="button"
           onClick={(e) => {
@@ -275,6 +278,9 @@ export default function SavedFlightsDashboard() {
 
   return (
     <div className="space-y-6">
+      {savedFlights.length > 0 ? (
+        <EnablePushNotificationsCard variant="inline" />
+      ) : null}
       <div>
         <label htmlFor="saved-flights-search" className="sr-only">
           Search saved flights

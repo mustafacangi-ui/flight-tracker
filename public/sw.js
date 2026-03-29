@@ -31,6 +31,45 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
+self.addEventListener("push", (event) => {
+  let payload = { title: "RouteWings", body: "Flight update", url: "/" };
+  try {
+    if (event.data) {
+      const j = event.data.json();
+      if (j && typeof j === "object") {
+        payload = { ...payload, ...j };
+      }
+    }
+  } catch {
+    /* plain text */
+    try {
+      const t = event.data?.text();
+      if (t) payload = { ...payload, body: t };
+    } catch {
+      /* ignore */
+    }
+  }
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { url: payload.url || "/" },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const path = (event.notification.data && event.notification.data.url) || "/";
+  const full = new URL(path, self.location.origin).href;
+  event.waitUntil(
+    self.clients.openWindow
+      ? self.clients.openWindow(full)
+      : Promise.resolve()
+  );
+});
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
