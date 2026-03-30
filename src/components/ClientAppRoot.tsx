@@ -15,6 +15,7 @@ import ServiceWorkerRegister from "./ServiceWorkerRegister";
 import StoreOnboardingGate from "./onboarding/StoreOnboardingGate";
 import RouteWingsOnboarding from "./RouteWingsOnboarding";
 import PushPromotionHost from "./PushPromotionHost";
+import PremiumEntitlementProvider from "./PremiumEntitlementProvider";
 import SupabaseAuthListener from "./SupabaseAuthListener";
 import { UpgradeModalProvider } from "./UpgradeModalProvider";
 
@@ -27,21 +28,23 @@ export default function ClientAppRoot({ children }: Props) {
     <PwaInstallProvider>
       <ServiceWorkerRegister />
       <AppSplashScreen>
-        <UpgradeModalProvider>
-          <AnalyticsProvider>
-            <CapacitorNativeBridge />
-            <MonitoringContextSync />
-            <StoreOnboardingGate />
-            <SupabaseAuthListener />
-            <Suspense fallback={null}>
-              <OAuthReturnHandler />
-            </Suspense>
-            <MobileShell>{children}</MobileShell>
-            <PushPromotionHost />
-            <RouteWingsOnboarding />
-            <FeedbackFAB />
-          </AnalyticsProvider>
-        </UpgradeModalProvider>
+        <PremiumEntitlementProvider>
+          <UpgradeModalProvider>
+            <AnalyticsProvider>
+              <CapacitorNativeBridge />
+              <MonitoringContextSync />
+              <StoreOnboardingGate />
+              <SupabaseAuthListener />
+              <Suspense fallback={null}>
+                <OAuthReturnHandler />
+              </Suspense>
+              <MobileShell>{children}</MobileShell>
+              <PushPromotionHost />
+              <RouteWingsOnboarding />
+              <FeedbackFAB />
+            </AnalyticsProvider>
+          </UpgradeModalProvider>
+        </PremiumEntitlementProvider>
       </AppSplashScreen>
       <PwaInstallCoordinator />
     </PwaInstallProvider>

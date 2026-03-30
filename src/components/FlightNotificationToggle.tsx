@@ -9,8 +9,8 @@ import {
   isSupabaseConfigured,
 } from "../lib/supabase/client";
 import type { SavedFlight } from "../lib/quickAccessStorage";
-import { FREE_TIER, isPremiumUser } from "../lib/premiumTier";
-import { userHasPremiumSubscription } from "../lib/premiumUserMeta";
+import { FREE_TIER } from "../lib/premiumTier";
+import { fetchPremiumEntitlementForSession } from "../lib/subscription/userPlanPremium";
 
 type Props = {
   flight: SavedFlight;
@@ -79,8 +79,10 @@ export default function FlightNotificationToggle({ flight, className = "" }: Pro
           .eq("flight_number", fn);
         setTracked(false);
       } else {
-        const premiumOk =
-          isPremiumUser() || userHasPremiumSubscription(user);
+        const { premium: premiumOk } = await fetchPremiumEntitlementForSession(
+          supabase,
+          { log: false }
+        );
         if (!premiumOk) {
           const { count, error: cErr } = await supabase
             .from("tracked_flights")

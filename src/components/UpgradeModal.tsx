@@ -1,9 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import Link from "next/link";
 import { useCallback } from "react";
-
-import { STORAGE_TIER_KEY } from "../lib/premiumTier";
 
 type Props = {
   open: boolean;
@@ -11,15 +10,8 @@ type Props = {
 };
 
 export default function UpgradeModal({ open, onClose }: Props) {
-  const enableProLocal = useCallback(() => {
-    try {
-      localStorage.setItem(STORAGE_TIER_KEY, "premium");
-    } catch {
-      /* ignore */
-    }
+  const goPremium = useCallback(() => {
     onClose();
-    window.dispatchEvent(new Event("storage"));
-    window.location.reload();
   }, [onClose]);
 
   return (
@@ -52,18 +44,18 @@ export default function UpgradeModal({ open, onClose }: Props) {
               Unlock advanced flight tracking and family notifications.
             </p>
             <p className="mt-2 text-xs leading-relaxed text-gray-400">
-              Pro includes unlimited tracked flights, richer aircraft history,
-              delay and weather intelligence, and more. Billing integration
-              coming soon — this preview enables Pro locally in your browser.
+              Premium includes unlimited saved flights, push alerts, private
+              family links, and live map — subscribe with Stripe on the Premium
+              page.
             </p>
             <div className="mt-5 flex flex-col gap-2">
-              <button
-                type="button"
-                className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-violet-600 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-900/30 transition hover:brightness-105"
-                onClick={enableProLocal}
+              <Link
+                href="/premium"
+                onClick={goPremium}
+                className="flex w-full justify-center rounded-xl bg-gradient-to-r from-cyan-600 to-violet-600 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-900/30 transition hover:brightness-105"
               >
-                Upgrade to Pro
-              </button>
+                View Premium plans
+              </Link>
               <button
                 type="button"
                 className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-2.5 text-sm font-medium text-gray-200 transition hover:bg-white/[0.07]"

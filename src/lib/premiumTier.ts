@@ -1,10 +1,12 @@
 /**
- * Free vs Premium. Client tier: `localStorage` + Supabase metadata sync (see premiumSyncClient).
- * QA: `localStorage.setItem("flightApp_tier", "premium")` or use upgrade modal.
+ * Free vs Premium. Entitlement comes only from `user_plans` (Stripe-linked, active/trialing),
+ * resolved by PremiumEntitlementProvider and exposed via getPremiumEntitlement() / usePremiumFlag.
  */
 
+import { getPremiumEntitlement } from "./premiumEntitlementRegistry";
 import { isFlightTracked, loadTrackedFlightNumbers } from "./flightTrackingStorage";
 
+/** Legacy key — cleared on load; no longer used for entitlement. */
 export const STORAGE_TIER_KEY = "flightApp_tier";
 
 /** Fired when tier may have changed (same-tab listeners). */
@@ -54,17 +56,11 @@ export const FREE_FEATURES = [
 ] as const;
 
 export function getSubscriptionTier(): SubscriptionTier {
-  if (typeof window === "undefined") return "free";
-  try {
-    const v = localStorage.getItem(STORAGE_TIER_KEY)?.trim().toLowerCase();
-    return v === "premium" || v === "pro" ? "premium" : "free";
-  } catch {
-    return "free";
-  }
+  return getPremiumEntitlement() ? "premium" : "free";
 }
 
 export function isPremiumUser(): boolean {
-  return getSubscriptionTier() === "premium";
+  return getPremiumEntitlement();
 }
 
 /** Whether the user may turn local smart tracking ON for this flight (free tier cap). */

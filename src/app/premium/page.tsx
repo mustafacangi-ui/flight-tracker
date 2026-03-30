@@ -55,7 +55,7 @@ const ROWS: { feature: string; free: string; premium: string }[] = [
 const FAQ = [
   {
     q: "How does billing work?",
-    a: "Subscribe with Stripe Checkout (when configured). You’ll return to our success page and Premium activates on your account. QA mode still offers a local unlock when Stripe env vars are missing.",
+    a: "Subscribe with Stripe Checkout (when configured). You’ll return to our success page; Premium unlocks after your subscription row syncs from Stripe (usually within a few seconds).",
   },
   {
     q: "Can my family see flights without Premium?",

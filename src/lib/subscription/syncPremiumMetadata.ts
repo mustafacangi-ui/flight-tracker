@@ -17,7 +17,8 @@ export type SyncPremiumMetadataInput = {
 };
 
 /**
- * Upserts `user_plans` and merges Supabase Auth `user_metadata` premium flags.
+ * Upserts `user_plans` and merges Supabase Auth `user_metadata` premium flags
+ * (secondary; client entitlement is derived from `user_plans` only).
  * Call from Stripe webhooks with the service role client.
  */
 export async function syncPremiumMetadata(

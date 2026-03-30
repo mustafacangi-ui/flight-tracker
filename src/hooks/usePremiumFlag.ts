@@ -1,28 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useContext } from "react";
 
-import {
-  isPremiumUser,
-  PREMIUM_TIER_UPDATED_EVENT,
-} from "../lib/premiumTier";
+import { PremiumEntitlementContext } from "../components/PremiumEntitlementProvider";
 
 /**
- * Re-renders when premium tier changes (localStorage + custom event from auth / upgrade).
+ * Premium when `user_plans` has an active/trialing Stripe subscription for the signed-in user.
  */
 export function usePremiumFlag(): boolean {
-  const [premium, setPremium] = useState(false);
-
-  useEffect(() => {
-    const sync = () => setPremium(isPremiumUser());
-    sync();
-    window.addEventListener("storage", sync);
-    window.addEventListener(PREMIUM_TIER_UPDATED_EVENT, sync);
-    return () => {
-      window.removeEventListener("storage", sync);
-      window.removeEventListener(PREMIUM_TIER_UPDATED_EVENT, sync);
-    };
-  }, []);
-
-  return premium;
+  const ctx = useContext(PremiumEntitlementContext);
+  return ctx?.isPremium ?? false;
 }

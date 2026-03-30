@@ -3,7 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { normalizeFlightNumberKey } from "../../../../lib/flightDetail";
-import { userHasPremiumSubscription } from "../../../../lib/premiumUserMeta";
+import { userPlanGrantsPremiumForUserId } from "../../../../lib/subscription/userPlanPremium";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +35,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!userHasPremiumSubscription(user)) {
+  const hasPremium = await userPlanGrantsPremiumForUserId(supabase, user.id, {
+    log: true,
+  });
+  if (!hasPremium) {
     return NextResponse.json(
       {
         error: "Premium required for private family tracking links.",

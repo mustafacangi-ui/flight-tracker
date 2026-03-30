@@ -10,7 +10,6 @@ import {
   trackProductEvent,
 } from "../lib/analytics/telemetry";
 import { captureError } from "../lib/monitoring/captureError";
-import { grantClientPremiumTier } from "../lib/premiumSyncClient";
 import { PREMIUM_MODAL_FEATURES } from "../lib/premiumTier";
 import { createBrowserSupabaseClient } from "../lib/supabase/client";
 
@@ -105,82 +104,22 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
     if (premium) return;
     setCheckoutError(null);
 
-    if (checkoutEnabled) {
-      const supabase = createBrowserSupabaseClient();
-      const {
-        data: { user },
-      } = (await supabase?.auth.getUser()) ?? { data: { user: null } };
-      if (!user) {
-        setCheckoutError(
-          "Sign in with Google from the header to start Stripe Checkout."
-        );
-        setSignedIn(false);
-        return;
-      }
+    if (!checkoutEnabled) {
+      setCheckoutError(
+        "Premium checkout is not configured on this deployment."
+      );
+      return;
+    }
 
-      setBusy(true);
-      try {
-        trackProductEvent(AnalyticsEvents.premium_checkout_started, {
-          plan,
-          channel: "stripe",
-        });
-        trackProductEvent(AnalyticsEvents.stripe_checkout_started, { plan });
-        const res = await fetch("/api/stripe/checkout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ plan }),
-        });
-        let data: { url?: string; error?: string } = {};
-        try {
-          data = (await res.json()) as typeof data;
-        } catch {
-          /* ignore */
-        }
-        if (!res.ok) {
-          const errText = (data.error ?? "").toLowerCase();
-          const configMissing =
-            res.status === 503 &&
-            (data.error === "Stripe is not configured" ||
-              errText.includes("not configured"));
-          if (configMissing) {
-            trackProductEvent(AnalyticsEvents.stripe_payment_failed, {
-              phase: "config_missing",
-            });
-            setCheckoutError(
-              "Premium checkout isn’t available right now. Please try again later."
-            );
-            return;
-          }
-          trackProductEvent(AnalyticsEvents.stripe_payment_failed, {
-            phase: "checkout_start",
-            has_message: Boolean(data.error),
-          });
-          setCheckoutError("Checkout failed. Try again.");
-          return;
-        }
-        if (data.url) {
-          window.location.href = data.url;
-          return;
-        }
-        trackProductEvent(AnalyticsEvents.stripe_payment_failed, {
-          phase: "checkout_start",
-          has_message: true,
-        });
-        setCheckoutError("Checkout failed. Try again.");
-      } catch (e) {
-        captureError(e, {
-          area: "stripe_checkout_client",
-          tags: { plan },
-          extras: { summary: "checkout start failed" },
-        });
-        trackProductEvent(AnalyticsEvents.stripe_payment_failed, {
-          phase: "checkout_start",
-          has_message: true,
-        });
-        setCheckoutError("Checkout failed. Try again.");
-      } finally {
-        setBusy(false);
-      }
+    const supabase = createBrowserSupabaseClient();
+    const {
+      data: { user },
+    } = (await supabase?.auth.getUser()) ?? { data: { user: null } };
+    if (!user) {
+      setCheckoutError(
+        "Sign in with Google from the header to start Stripe Checkout."
+      );
+      setSignedIn(false);
       return;
     }
 
@@ -188,19 +127,62 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
     try {
       trackProductEvent(AnalyticsEvents.premium_checkout_started, {
         plan,
-        channel: "qa_local",
+        channel: "stripe",
       });
-      await grantClientPremiumTier();
-      trackProductEvent(AnalyticsEvents.premium_checkout_success, {
-        plan,
-        channel: "qa_local",
+      trackProductEvent(AnalyticsEvents.stripe_checkout_started, { plan });
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
       });
+      let data: { url?: string; error?: string } = {};
       try {
-        localStorage.setItem("flightApp_premiumPlanPreference", plan);
+        data = (await res.json()) as typeof data;
       } catch {
         /* ignore */
       }
-      onClose();
+      if (!res.ok) {
+        const errText = (data.error ?? "").toLowerCase();
+        const configMissing =
+          res.status === 503 &&
+          (data.error === "Stripe is not configured" ||
+            errText.includes("not configured"));
+        if (configMissing) {
+          trackProductEvent(AnalyticsEvents.stripe_payment_failed, {
+            phase: "config_missing",
+          });
+          setCheckoutError(
+            "Premium checkout isn’t available right now. Please try again later."
+          );
+          return;
+        }
+        trackProductEvent(AnalyticsEvents.stripe_payment_failed, {
+          phase: "checkout_start",
+          has_message: Boolean(data.error),
+        });
+        setCheckoutError("Checkout failed. Try again.");
+        return;
+      }
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      trackProductEvent(AnalyticsEvents.stripe_payment_failed, {
+        phase: "checkout_start",
+        has_message: true,
+      });
+      setCheckoutError("Checkout failed. Try again.");
+    } catch (e) {
+      captureError(e, {
+        area: "stripe_checkout_client",
+        tags: { plan },
+        extras: { summary: "checkout start failed" },
+      });
+      trackProductEvent(AnalyticsEvents.stripe_payment_failed, {
+        phase: "checkout_start",
+        has_message: true,
+      });
+      setCheckoutError("Checkout failed. Try again.");
     } finally {
       setBusy(false);
     }
@@ -245,14 +227,9 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
                     Premium
                   </span>
                   {checkoutEnabled === false ? (
-                    <>
-                      <span className="rounded-full border border-violet-500/35 bg-violet-500/10 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wide text-violet-200/90">
-                        QA
-                      </span>
-                      <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wide text-amber-200/90">
-                        Stripe not configured
-                      </span>
-                    </>
+                    <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wide text-amber-200/90">
+                      Stripe not configured
+                    </span>
                   ) : null}
                 </div>
                 <button
@@ -379,6 +356,7 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
                   disabled={
                     busy ||
                     premium ||
+                    checkoutEnabled === false ||
                     (checkoutEnabled === true && signedIn !== true)
                   }
                   onClick={() => void handleSubscribe()}
@@ -413,7 +391,7 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
               <p className="mt-4 text-center text-[11px] leading-relaxed text-slate-600">
                 {checkoutEnabled
                   ? "Secure payment via Stripe. Subscription renews until you cancel in the customer portal."
-                  : "QA: the button below unlocks Premium locally for testing and syncs account metadata when you’re signed in."}
+                  : "Subscriptions require Stripe Checkout to be configured on the server."}
               </p>
             </div>
           </motion.div>

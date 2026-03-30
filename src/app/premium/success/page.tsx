@@ -8,17 +8,20 @@ import HomeTopAuthBar from "../../../components/home/HomeTopAuthBar";
 import {
   dispatchPremiumTierUpdated,
   PREMIUM_MODAL_FEATURES,
-  STORAGE_TIER_KEY,
 } from "../../../lib/premiumTier";
-import { userHasPremiumSubscription } from "../../../lib/premiumUserMeta";
 import {
   createBrowserSupabaseClient,
   isSupabaseConfigured,
 } from "../../../lib/supabase/client";
+import { fetchPremiumEntitlementForSession } from "../../../lib/subscription/userPlanPremium";
 import {
   AnalyticsEvents,
   trackProductEvent,
 } from "../../../lib/analytics/telemetry";
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 function ConfettiBurst() {
   return (
@@ -41,8 +44,12 @@ function ConfettiBurst() {
   );
 }
 
+const POLL_MS = 2000;
+const MAX_POLLS = 15;
+
 export default function PremiumSuccessPage() {
   const [synced, setSynced] = useState(false);
+  const [subscriptionReady, setSubscriptionReady] = useState(false);
   const checkoutTracked = useRef(false);
 
   useEffect(() => {
@@ -69,16 +76,17 @@ export default function PremiumSuccessPage() {
     void (async () => {
       try {
         await supabase.auth.refreshSession();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (user && userHasPremiumSubscription(user)) {
-          try {
-            localStorage.setItem(STORAGE_TIER_KEY, "premium");
-          } catch {
-            /* ignore */
+        for (let i = 0; i < MAX_POLLS; i++) {
+          const { premium } = await fetchPremiumEntitlementForSession(
+            supabase,
+            { log: true }
+          );
+          if (premium) {
+            setSubscriptionReady(true);
+            dispatchPremiumTierUpdated();
+            break;
           }
-          dispatchPremiumTierUpdated();
+          await sleep(POLL_MS);
         }
       } catch {
         /* ignore */
@@ -127,9 +135,11 @@ export default function PremiumSuccessPage() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            {synced
-              ? "Your subscription is active. Enjoy unlimited saves, family links, live maps, and alerts."
-              : "Syncing your account…"}
+            {!synced
+              ? "Syncing your account…"
+              : subscriptionReady
+                ? "Your subscription is active. Enjoy unlimited saves, family links, live maps, and alerts."
+                : "Payment succeeded. Your Premium access will appear shortly once we finish syncing your subscription — refresh in a moment if features look locked."}
           </motion.p>
 
           <motion.ul

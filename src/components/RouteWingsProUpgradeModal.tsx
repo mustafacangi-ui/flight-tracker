@@ -1,9 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import Link from "next/link";
 import { useCallback, useId, useState } from "react";
-
-import { STORAGE_TIER_KEY } from "../lib/premiumTier";
 
 export type ProBillingPlan = "monthly" | "yearly";
 
@@ -70,32 +69,19 @@ export default function RouteWingsProUpgradeModal({
   const titleId = useId();
   const descId = useId();
 
-  const defaultStartTrial = useCallback(
-    (selected: ProBillingPlan) => {
-      try {
-        localStorage.setItem(STORAGE_TIER_KEY, "premium");
-        localStorage.setItem(
-          "flightApp_proPlanPreference",
-          selected
-        );
-      } catch {
-        /* ignore */
-      }
-      onClose();
-      window.dispatchEvent(new Event("storage"));
-      window.location.reload();
-    },
-    [onClose]
-  );
-
   const handleStartTrial = useCallback(() => {
     if (onStartTrial) {
       onStartTrial(plan);
       onClose();
       return;
     }
-    defaultStartTrial(plan);
-  }, [defaultStartTrial, onClose, onStartTrial, plan]);
+    try {
+      localStorage.setItem("flightApp_proPlanPreference", plan);
+    } catch {
+      /* ignore */
+    }
+    onClose();
+  }, [onClose, onStartTrial, plan]);
 
   return (
     <AnimatePresence>
@@ -226,13 +212,23 @@ export default function RouteWingsProUpgradeModal({
               </div>
 
               <div className="mt-6 flex flex-col gap-2.5">
-                <button
-                  type="button"
-                  onClick={handleStartTrial}
-                  className="w-full rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-950/35 transition hover:brightness-110 active:scale-[0.99]"
-                >
-                  Start Pro Trial
-                </button>
+                {onStartTrial ? (
+                  <button
+                    type="button"
+                    onClick={handleStartTrial}
+                    className="w-full rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 py-3.5 text-sm font-semibold text-white shadow-lg shadow-blue-950/35 transition hover:brightness-110 active:scale-[0.99]"
+                  >
+                    Start Pro Trial
+                  </button>
+                ) : (
+                  <Link
+                    href="/premium"
+                    onClick={onClose}
+                    className="flex w-full justify-center rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 py-3.5 text-center text-sm font-semibold text-white shadow-lg shadow-blue-950/35 transition hover:brightness-110 active:scale-[0.99]"
+                  >
+                    Subscribe on Premium page
+                  </Link>
+                )}
                 <button
                   type="button"
                   onClick={onClose}
@@ -245,8 +241,8 @@ export default function RouteWingsProUpgradeModal({
                 Cancel anytime
               </p>
               <p className="mt-3 text-center text-[11px] leading-relaxed text-slate-600">
-                Billing connects to Stripe soon — trial enables Pro in this
-                browser for preview.
+                Subscriptions are activated through Stripe Checkout after you sign
+                in.
               </p>
             </div>
           </motion.div>
