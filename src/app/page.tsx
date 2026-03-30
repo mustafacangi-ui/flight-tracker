@@ -26,7 +26,11 @@ import {
   formatAirportLongDateUpper,
   getEffectiveAirportTimeZone,
 } from "../lib/formatAirportTime";
-import { formatFlightsFromApi, type DisplayFlight } from "../lib/formatFlights";
+import {
+  buildFlightBoardDisplay,
+  type BoardFilterMode,
+} from "../lib/flightBoardDisplay";
+import type { DisplayFlight } from "../lib/formatFlights";
 import { parseAirportCode, type AeroAirportFlight } from "../lib/flightTypes";
 import { trackEvent } from "../lib/localAnalytics";
 import { consumeScrollToSearch } from "../lib/mobileNavSession";
@@ -86,6 +90,11 @@ export default function Home() {
   const [emptyAfterSuccess, setEmptyAfterSuccess] = useState(false);
   /** User tapped refresh; show live-update banner while loading with existing rows. */
   const [manualLiveRefresh, setManualLiveRefresh] = useState(false);
+  const [boardFilter, setBoardFilter] = useState<BoardFilterMode>("upcoming");
+  const boardFilterRef = useRef(boardFilter);
+  boardFilterRef.current = boardFilter;
+
+  const [rawBoardCounts, setRawBoardCounts] = useState({ dep: 0, arr: 0 });
 
   const airportRef = useRef(airport);
   airportRef.current = airport;
@@ -192,9 +201,15 @@ export default function Home() {
           code,
           selectedAirportRef.current
         );
-        const fmt = { airportTimeZone: tz };
-        setDepartures(formatFlightsFromApi(hit.departures, [], fmt));
-        setArrivals(formatFlightsFromApi([], hit.arrivals, fmt));
+        const built = buildFlightBoardDisplay(
+          hit.departures,
+          hit.arrivals,
+          tz,
+          boardFilterRef.current
+        );
+        setDepartures(built.departures);
+        setArrivals(built.arrivals);
+        setRawBoardCounts(built.rawCounts);
         setLastUpdated(new Date(hit.fetchedAt));
         setFetchSucceededOnce(true);
         setEmptyAfterSuccess(
@@ -223,8 +238,19 @@ export default function Home() {
             setError(data.error ?? RATE_LIMIT_EXCEEDED_MESSAGE);
             const hit = sessionFlightsCache.current.get(code);
             if (hit) {
-              setDepartures(formatFlightsFromApi(hit.departures, []));
-              setArrivals(formatFlightsFromApi([], hit.arrivals));
+              const tz = getEffectiveAirportTimeZone(
+                code,
+                selectedAirportRef.current
+              );
+              const built = buildFlightBoardDisplay(
+                hit.departures,
+                hit.arrivals,
+                tz,
+                boardFilterRef.current
+              );
+              setDepartures(built.departures);
+              setArrivals(built.arrivals);
+              setRawBoardCounts(built.rawCounts);
               setLastUpdated(new Date(hit.fetchedAt));
               setEmptyAfterSuccess(
                 hit.departures.length === 0 && hit.arrivals.length === 0
@@ -239,12 +265,14 @@ export default function Home() {
             } else {
               setDepartures([]);
               setArrivals([]);
+              setRawBoardCounts({ dep: 0, arr: 0 });
               setLastUpdated(null);
               setEmptyAfterSuccess(false);
             }
           } else {
             setDepartures([]);
             setArrivals([]);
+            setRawBoardCounts({ dep: 0, arr: 0 });
             setLastUpdated(null);
             setEmptyAfterSuccess(false);
             setError(
@@ -267,9 +295,15 @@ export default function Home() {
           code,
           selectedAirportRef.current
         );
-        const fmt = { airportTimeZone: tz };
-        setDepartures(formatFlightsFromApi(entry.departures, [], fmt));
-        setArrivals(formatFlightsFromApi([], entry.arrivals, fmt));
+        const built = buildFlightBoardDisplay(
+          entry.departures,
+          entry.arrivals,
+          tz,
+          boardFilterRef.current
+        );
+        setDepartures(built.departures);
+        setArrivals(built.arrivals);
+        setRawBoardCounts(built.rawCounts);
         setLastUpdated(new Date(entry.fetchedAt));
         setFetchSucceededOnce(true);
         setEmptyAfterSuccess(
@@ -279,6 +313,7 @@ export default function Home() {
       } catch {
         setDepartures([]);
         setArrivals([]);
+        setRawBoardCounts({ dep: 0, arr: 0 });
         setLastUpdated(null);
         setEmptyAfterSuccess(false);
         setError(
@@ -292,6 +327,7 @@ export default function Home() {
   );
 
   const handleSearch = async (value: string) => {
+    setBoardFilter("upcoming");
     const code = parseAirportCode(value);
     recordRecentAirportSearch(code);
     setAirport(code);
@@ -306,6 +342,7 @@ export default function Home() {
 
   const handleAirportSelect = useCallback(
     (a: { code: string; name: string; timezone?: string }) => {
+      setBoardFilter("upcoming");
       recordRecentAirportSearch(a.code);
       setAirport(a.code);
       const tz =
@@ -373,13 +410,43 @@ export default function Home() {
     return () => window.clearInterval(id);
   }, [hasSearched, fetchSucceededOnce, fetchFlights]);
 
+  useEffect(() => {
+    if (!hasSearched) return;
+    const code = airportRef.current;
+    const hit = sessionFlightsCache.current.get(code);
+    if (!hit) return;
+    const tz = getEffectiveAirportTimeZone(
+      code,
+      selectedAirportRef.current
+    );
+    const built = buildFlightBoardDisplay(
+      hit.departures,
+      hit.arrivals,
+      tz,
+      boardFilter
+    );
+    setDepartures(built.departures);
+    setArrivals(built.arrivals);
+    setRawBoardCounts(built.rawCounts);
+  }, [
+    boardFilter,
+    hasSearched,
+    airport,
+    selectedAirport?.code,
+    selectedAirport?.timezone,
+  ]);
+
   const showEmpty =
     hasSearched &&
     !loading &&
     emptyAfterSuccess &&
     !error;
 
-  const hasFlightRows = departures.length > 0 || arrivals.length > 0;
+  const hasFlightRows =
+    departures.length > 0 ||
+    arrivals.length > 0 ||
+    rawBoardCounts.dep > 0 ||
+    rawBoardCounts.arr > 0;
   const showLiveUpdateBanner =
     manualLiveRefresh && loading && hasSearched && hasFlightRows;
   const showResultsSkeleton =
@@ -411,7 +478,13 @@ export default function Home() {
     runDepartureReminders(departures, effectiveIanaTz);
   }, [departures, effectiveIanaTz, hasSearched]);
 
-  const flightsTodayTotal = departures.length + arrivals.length;
+  const flightsTodayTotal = rawBoardCounts.dep + rawBoardCounts.arr;
+
+  const showUpcomingEmptyForMode =
+    boardFilter === "upcoming" &&
+    (mode === "departure"
+      ? departures.length === 0 && rawBoardCounts.dep > 0
+      : arrivals.length === 0 && rawBoardCounts.arr > 0);
   const sampleFlightForFacts = useMemo(() => {
     const list = mode === "departure" ? departures : arrivals;
     return list[0] ?? null;
@@ -684,6 +757,31 @@ export default function Home() {
                       Board
                     </button>
                   </div>
+
+                  <div className="grid grid-cols-2 gap-2 md:flex md:justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setBoardFilter("upcoming")}
+                      className={`w-full rounded-lg px-3 py-2.5 text-sm md:w-auto md:px-4 md:py-2 ${
+                        boardFilter === "upcoming"
+                          ? "bg-sky-600 text-white"
+                          : "bg-gray-700 text-gray-300"
+                      }`}
+                    >
+                      Upcoming
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBoardFilter("all")}
+                      className={`w-full rounded-lg px-3 py-2.5 text-sm md:w-auto md:px-4 md:py-2 ${
+                        boardFilter === "all"
+                          ? "bg-sky-600 text-white"
+                          : "bg-gray-700 text-gray-300"
+                      }`}
+                    >
+                      All flights
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -706,16 +804,35 @@ export default function Home() {
                         ease: [0.22, 1, 0.36, 1],
                       }}
                     >
-                      <FlightList
-                        flights={
-                          mode === "departure" ? departures : arrivals
-                        }
-                        loading={loading}
-                        searchedAirportCode={
-                          selectedAirport?.code ?? airport
-                        }
-                        airportTimeZone={effectiveIanaTz}
-                      />
+                      {showUpcomingEmptyForMode ? (
+                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-10 text-center">
+                          <p className="text-sm font-medium text-amber-100/95">
+                            No upcoming flights in the next 3 hours
+                          </p>
+                          <p className="mt-2 text-xs text-amber-200/70">
+                            Completed or departed flights are hidden in this
+                            view.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setBoardFilter("all")}
+                            className="mt-5 rounded-lg bg-amber-500/90 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
+                          >
+                            Show all flights
+                          </button>
+                        </div>
+                      ) : (
+                        <FlightList
+                          flights={
+                            mode === "departure" ? departures : arrivals
+                          }
+                          loading={loading}
+                          searchedAirportCode={
+                            selectedAirport?.code ?? airport
+                          }
+                          airportTimeZone={effectiveIanaTz}
+                        />
+                      )}
                     </motion.div>
                   ) : (
                     <motion.div
@@ -728,24 +845,39 @@ export default function Home() {
                         ease: [0.22, 1, 0.36, 1],
                       }}
                     >
-                      <FlightBoard
-                        flights={
-                          mode === "departure" ? departures : arrivals
-                        }
-                        mode={mode}
-                        loading={loading}
-                        airportLine={boardAirportLine}
-                        localTime={airportClockParts.time}
-                        timeZoneAbbrev={
-                          airportClockParts.zoneAbbrev || effectiveIanaTz
-                        }
-                        dateLine={boardDateLine}
-                        isLive={dataIsLive}
-                        searchedAirportCode={
-                          selectedAirport?.code ?? airport
-                        }
-                        airportTimeZone={effectiveIanaTz}
-                      />
+                      {showUpcomingEmptyForMode ? (
+                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-10 text-center">
+                          <p className="text-sm font-medium text-amber-100/95">
+                            No upcoming flights in the next 3 hours
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setBoardFilter("all")}
+                            className="mt-5 rounded-lg bg-amber-500/90 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
+                          >
+                            Show all flights
+                          </button>
+                        </div>
+                      ) : (
+                        <FlightBoard
+                          flights={
+                            mode === "departure" ? departures : arrivals
+                          }
+                          mode={mode}
+                          loading={loading}
+                          airportLine={boardAirportLine}
+                          localTime={airportClockParts.time}
+                          timeZoneAbbrev={
+                            airportClockParts.zoneAbbrev || effectiveIanaTz
+                          }
+                          dateLine={boardDateLine}
+                          isLive={dataIsLive}
+                          searchedAirportCode={
+                            selectedAirport?.code ?? airport
+                          }
+                          airportTimeZone={effectiveIanaTz}
+                        />
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>

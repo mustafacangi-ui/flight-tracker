@@ -14,6 +14,10 @@ import {
   weatherPlaceholderFromMock,
 } from "../../lib/airportInsightsMock";
 import type { SimplifiedAirport } from "../../lib/airportSearchTypes";
+import {
+  buildFlightBoardDisplay,
+  type BoardFilterMode,
+} from "../../lib/flightBoardDisplay";
 import { getEffectiveAirportTimeZone } from "../../lib/formatAirportTime";
 import FlightCardLiveRow from "../FlightCardLiveRow";
 import { displayFlightTrackContext } from "../../lib/flightCardLink";
@@ -146,8 +150,11 @@ export default function AirportDetailClient({ airportCode }: Props) {
   const { openUpgrade } = useUpgradeModal();
 
   const [meta, setMeta] = useState<SimplifiedAirport | null>(null);
+  const [rawDep, setRawDep] = useState<AeroAirportFlight[]>([]);
+  const [rawArr, setRawArr] = useState<AeroAirportFlight[]>([]);
   const [departures, setDepartures] = useState<DisplayFlight[]>([]);
   const [arrivals, setArrivals] = useState<DisplayFlight[]>([]);
+  const [boardFilter, setBoardFilter] = useState<BoardFilterMode>("upcoming");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>("departures");
@@ -163,12 +170,14 @@ export default function AirportDetailClient({ airportCode }: Props) {
     [code, meta]
   );
 
-  const fmt = useMemo(() => ({ airportTimeZone: tz }), [tz]);
-
   const favPayload = useMemo(() => toFavorite(meta, code), [meta, code]);
 
   useEffect(() => {
     recordRecentAirportSearch(code);
+  }, [code]);
+
+  useEffect(() => {
+    setBoardFilter("upcoming");
   }, [code]);
 
   useEffect(() => {
@@ -196,6 +205,12 @@ export default function AirportDetailClient({ airportCode }: Props) {
     };
   }, [code]);
 
+  useEffect(() => {
+    const built = buildFlightBoardDisplay(rawDep, rawArr, tz, boardFilter);
+    setDepartures(built.departures);
+    setArrivals(built.arrivals);
+  }, [rawDep, rawArr, tz, boardFilter]);
+
   const loadFlights = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -206,37 +221,38 @@ export default function AirportDetailClient({ airportCode }: Props) {
       const data = (await res.json()) as ApiFlightsResponse;
       if (!res.ok) {
         setError(data.error ?? "Could not load flights.");
-        setDepartures([]);
-        setArrivals([]);
+        setRawDep([]);
+        setRawArr([]);
         return;
       }
-      const dep = data.departures ?? [];
-      const arr = data.arrivals ?? [];
-      setDepartures(formatFlightsFromApi(dep, [], fmt));
-      setArrivals(formatFlightsFromApi([], arr, fmt));
+      setRawDep(data.departures ?? []);
+      setRawArr(data.arrivals ?? []);
     } catch {
       setError("Network error.");
-      setDepartures([]);
-      setArrivals([]);
+      setRawDep([]);
+      setRawArr([]);
     } finally {
       setLoading(false);
     }
-  }, [code, fmt]);
+  }, [code]);
 
   useEffect(() => {
     void loadFlights();
   }, [loadFlights]);
 
   const delayedAll = useMemo(() => {
+    const ffmt = { airportTimeZone: tz };
+    const allD = formatFlightsFromApi(rawDep, [], ffmt);
+    const allA = formatFlightsFromApi([], rawArr, ffmt);
     const seen = new Set<string>();
     const out: DisplayFlight[] = [];
-    for (const f of [...departures, ...arrivals]) {
+    for (const f of [...allD, ...allA]) {
       if (!isDelayedFlight(f) || seen.has(f.id)) continue;
       seen.add(f.id);
       out.push(f);
     }
     return out;
-  }, [departures, arrivals]);
+  }, [rawDep, rawArr, tz]);
 
   const trending = useMemo(() => {
     const pool = [...departures];
@@ -392,6 +408,31 @@ export default function AirportDetailClient({ airportCode }: Props) {
           ))}
         </div>
 
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setBoardFilter("upcoming")}
+            className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
+              boardFilter === "upcoming"
+                ? "border-sky-500/50 bg-sky-600/25 text-sky-100"
+                : "border-slate-800 bg-slate-900/50 text-slate-400 hover:border-slate-700"
+            }`}
+          >
+            Upcoming
+          </button>
+          <button
+            type="button"
+            onClick={() => setBoardFilter("all")}
+            className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
+              boardFilter === "all"
+                ? "border-sky-500/50 bg-sky-600/25 text-sky-100"
+                : "border-slate-800 bg-slate-900/50 text-slate-400 hover:border-slate-700"
+            }`}
+          >
+            All flights
+          </button>
+        </div>
+
         {/* Tab panels */}
         <section className="mt-6">
           {tab === "departures" || tab === "arrivals" ? (
@@ -404,6 +445,38 @@ export default function AirportDetailClient({ airportCode }: Props) {
                 <p className="rounded-2xl border border-red-500/25 bg-red-500/10 p-4 text-sm text-red-200">
                   {error}
                 </p>
+              ) : boardFilter === "upcoming" &&
+                tab === "departures" &&
+                departures.length === 0 &&
+                rawDep.length > 0 ? (
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-10 text-center">
+                  <p className="text-sm font-medium text-amber-100/95">
+                    No upcoming flights in the next 3 hours
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setBoardFilter("all")}
+                    className="mt-4 rounded-xl bg-amber-500/90 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
+                  >
+                    Show all flights
+                  </button>
+                </div>
+              ) : boardFilter === "upcoming" &&
+                tab === "arrivals" &&
+                arrivals.length === 0 &&
+                rawArr.length > 0 ? (
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-10 text-center">
+                  <p className="text-sm font-medium text-amber-100/95">
+                    No upcoming flights in the next 3 hours
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setBoardFilter("all")}
+                    className="mt-4 rounded-xl bg-amber-500/90 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
+                  >
+                    Show all flights
+                  </button>
+                </div>
               ) : (
                 <ul className="grid gap-3 sm:grid-cols-2">
                   {(tab === "departures" ? departures : arrivals).map((f) => (
@@ -419,7 +492,12 @@ export default function AirportDetailClient({ airportCode }: Props) {
               )}
               {!loading &&
               !error &&
-              (tab === "departures" ? departures : arrivals).length === 0 ? (
+              (tab === "departures" ? departures : arrivals).length === 0 &&
+              !(
+                boardFilter === "upcoming" &&
+                ((tab === "departures" && rawDep.length > 0) ||
+                  (tab === "arrivals" && rawArr.length > 0))
+              ) ? (
                 <p className="py-10 text-center text-sm text-slate-500">
                   No {tab} to show right now.
                 </p>

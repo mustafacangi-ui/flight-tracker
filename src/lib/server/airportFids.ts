@@ -1,5 +1,9 @@
 import type { AeroAirportFlight } from "../flightTypes";
 import { captureError } from "../monitoring/captureError";
+import {
+  sortArrivalBoardFlights,
+  sortDepartureBoardFlights,
+} from "../sortFidsFlights";
 import { getRapidApiHost, rapidApiHeaders } from "./rapidApiConfig";
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -50,8 +54,8 @@ export async function getAirportFids(
   const codeType = code.length === 4 ? "icao" : "iata";
   const host = getRapidApiHost();
   const url = new URL(`https://${host}/flights/airports/${codeType}/${code}`);
-  url.searchParams.set("offsetMinutes", "-120");
-  url.searchParams.set("durationMinutes", "720");
+  url.searchParams.set("offsetMinutes", "-30");
+  url.searchParams.set("durationMinutes", "180");
   url.searchParams.set("withLeg", "true");
 
   let res: Response;
@@ -130,8 +134,8 @@ export async function getAirportFids(
   }
 
   const payload: CachedFlightsData = {
-    departures: data.departures ?? [],
-    arrivals: data.arrivals ?? [],
+    departures: sortDepartureBoardFlights(data.departures ?? []),
+    arrivals: sortArrivalBoardFlights(data.arrivals ?? []),
   };
 
   const ts = Date.now();
