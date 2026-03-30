@@ -6,6 +6,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -16,41 +17,68 @@ import {
   createBrowserSupabaseClient,
   isSupabaseConfigured,
 } from "../lib/supabase/client";
+import type { PremiumResolveLog } from "../lib/subscription/userPlanPremium";
 import { fetchPremiumEntitlementForSession } from "../lib/subscription/userPlanPremium";
 import {
   PREMIUM_TIER_UPDATED_EVENT,
   STORAGE_TIER_KEY,
 } from "../lib/premiumTier";
 
-type Ctx = {
+export type PremiumEntitlementContextValue = {
+  /** True only after at least one entitlement fetch finished (or env missing). */
+  hasResolved: boolean;
   isPremium: boolean;
+  lastResolution: PremiumResolveLog | null;
   refreshPremium: () => Promise<void>;
 };
 
-export const PremiumEntitlementContext = createContext<Ctx | null>(null);
+export const PremiumEntitlementContext =
+  createContext<PremiumEntitlementContextValue | null>(null);
 
 export default function PremiumEntitlementProvider({
   children,
 }: {
   children: ReactNode;
 }) {
+  const [hasResolved, setHasResolved] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
+  const [lastResolution, setLastResolution] =
+    useState<PremiumResolveLog | null>(null);
+  const isPremiumRef = useRef(isPremium);
   const clearedLegacyTier = useRef(false);
+
+  isPremiumRef.current = isPremium;
 
   const refreshPremium = useCallback(async () => {
     if (!isSupabaseConfigured()) {
+      const snap: PremiumResolveLog = {
+        userId: null,
+        subscriptionRow: null,
+        premium: false,
+      };
       setIsPremium(false);
+      setLastResolution(snap);
+      setHasResolved(true);
       return;
     }
     const supabase = createBrowserSupabaseClient();
     if (!supabase) {
+      const snap: PremiumResolveLog = {
+        userId: null,
+        subscriptionRow: null,
+        premium: false,
+      };
       setIsPremium(false);
+      setLastResolution(snap);
+      setHasResolved(true);
       return;
     }
-    const { premium } = await fetchPremiumEntitlementForSession(supabase, {
+    const resolved = await fetchPremiumEntitlementForSession(supabase, {
       log: true,
     });
-    setIsPremium(premium);
+    setIsPremium(resolved.premium);
+    setLastResolution(resolved);
+    setHasResolved(true);
   }, []);
 
   useEffect(() => {
@@ -64,8 +92,8 @@ export default function PremiumEntitlementProvider({
     }
   }, []);
 
-  useEffect(() => {
-    setPremiumEntitlementReader(() => isPremium);
+  useLayoutEffect(() => {
+    setPremiumEntitlementReader(() => isPremiumRef.current);
   }, [isPremium]);
 
   useEffect(() => {
@@ -106,8 +134,13 @@ export default function PremiumEntitlementProvider({
   }, [refreshPremium]);
 
   const value = useMemo(
-    () => ({ isPremium, refreshPremium }),
-    [isPremium, refreshPremium]
+    () => ({
+      hasResolved,
+      isPremium,
+      lastResolution,
+      refreshPremium,
+    }),
+    [hasResolved, isPremium, lastResolution, refreshPremium]
   );
 
   return (

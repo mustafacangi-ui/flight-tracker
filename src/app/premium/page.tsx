@@ -2,8 +2,10 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useContext, useEffect } from "react";
 
 import HomeTopAuthBar from "../../components/home/HomeTopAuthBar";
+import { PremiumEntitlementContext } from "../../components/PremiumEntitlementProvider";
 import { useUpgradeModal } from "../../components/UpgradeModalProvider";
 import { usePremiumFlag } from "../../hooks/usePremiumFlag";
 import { useTrackPageView } from "../../hooks/useTrackPageView";
@@ -79,6 +81,21 @@ export default function PremiumPage() {
   useTrackPageView("premium");
   const { openUpgrade } = useUpgradeModal();
   const premium = usePremiumFlag();
+  const entitlement = useContext(PremiumEntitlementContext);
+
+  useEffect(() => {
+    if (!entitlement?.hasResolved) return;
+    console.info("[premium-page] entitlement", {
+      resolvedPremium: premium,
+      hasResolved: entitlement.hasResolved,
+      userId: entitlement.lastResolution?.userId ?? null,
+      subscriptionRow: entitlement.lastResolution?.subscriptionRow ?? null,
+    });
+  }, [
+    entitlement?.hasResolved,
+    entitlement?.lastResolution,
+    premium,
+  ]);
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#04060d] text-white">

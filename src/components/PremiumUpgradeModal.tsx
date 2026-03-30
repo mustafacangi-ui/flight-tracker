@@ -130,6 +130,9 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
         channel: "stripe",
       });
       trackProductEvent(AnalyticsEvents.stripe_checkout_started, { plan });
+      console.info("[stripe] checkout client → POST /api/stripe/checkout", {
+        plan,
+      });
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -141,6 +144,12 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
       } catch {
         /* ignore */
       }
+      console.info("[stripe] checkout client ← response", {
+        status: res.status,
+        ok: res.ok,
+        hasUrl: Boolean(data.url),
+        error: data.error ?? null,
+      });
       if (!res.ok) {
         const errText = (data.error ?? "").toLowerCase();
         const configMissing =
@@ -160,10 +169,18 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
           phase: "checkout_start",
           has_message: Boolean(data.error),
         });
-        setCheckoutError("Checkout failed. Try again.");
+        const fromServer = data.error?.trim();
+        setCheckoutError(
+          fromServer && fromServer.length < 280
+            ? fromServer
+            : "Checkout failed. Try again."
+        );
         return;
       }
       if (data.url) {
+        console.info("[stripe] checkout client redirect", {
+          host: new URL(data.url).host,
+        });
         window.location.href = data.url;
         return;
       }

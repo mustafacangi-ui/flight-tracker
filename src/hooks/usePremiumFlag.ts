@@ -6,8 +6,10 @@ import { PremiumEntitlementContext } from "../components/PremiumEntitlementProvi
 
 /**
  * Premium when `user_plans` has an active/trialing Stripe subscription for the signed-in user.
+ * False until the first entitlement resolution completes (never assume premium while loading).
  */
 export function usePremiumFlag(): boolean {
   const ctx = useContext(PremiumEntitlementContext);
-  return ctx?.isPremium ?? false;
+  if (!ctx?.hasResolved) return false;
+  return ctx.isPremium;
 }
