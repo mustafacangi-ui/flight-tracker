@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
 import { captureError } from "../../../../lib/monitoring/captureError";
+import { isStripeConfigured } from "../../../../lib/stripe/isStripeConfigured";
 import {
   getStripeCheckoutReturnUrls,
   getStripePriceIds,
   getStripeSecretKey,
-  isStripeCheckoutConfigured,
 } from "../../../../lib/stripeEnv";
 import { createServerSupabaseClient } from "../../../../lib/supabase/server";
 
@@ -17,9 +17,15 @@ type Body = {
 };
 
 export async function POST(request: Request) {
-  if (!isStripeCheckoutConfigured()) {
+  if (!isStripeConfigured()) {
+    captureError(new Error("Stripe checkout requested but not configured"), {
+      area: "stripe_checkout",
+      tags: { phase: "config_missing" },
+      extras: { summary: "missing STRIPE_SECRET_KEY or price env vars" },
+      level: "warning",
+    });
     return NextResponse.json(
-      { error: "Stripe Checkout is not configured" },
+      { error: "Stripe is not configured" },
       { status: 503 }
     );
   }

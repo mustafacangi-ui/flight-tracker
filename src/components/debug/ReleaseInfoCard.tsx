@@ -87,8 +87,8 @@ export default function ReleaseInfoCard({ data }: { data: ReleaseInfoData }) {
           label="Stripe Checkout (server)"
           value={
             data.stripeCheckoutConfigured
-              ? "Ready (secret + price IDs)"
-              : "Not fully configured"
+              ? "Configured"
+              : "Missing STRIPE_SECRET_KEY or price IDs"
           }
           ok={data.stripeCheckoutConfigured}
         />

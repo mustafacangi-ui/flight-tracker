@@ -123,15 +123,11 @@ export default function ReleaseCheckClient({
     : "not_configured";
 
   const stripeBadge: QaBadge = useMemo(() => {
-    if (!serverMeta.stripePublishableConfigured) return "not_configured";
-    const apiReady = stripeCheckoutEnabled === true;
-    if (serverMeta.stripeCheckoutConfigured && apiReady) return "pass";
+    if (!serverMeta.stripeCheckoutConfigured) return "not_configured";
+    if (stripeCheckoutEnabled === null) return "needs_review";
+    if (stripeCheckoutEnabled) return "pass";
     return "needs_review";
-  }, [
-    serverMeta.stripeCheckoutConfigured,
-    serverMeta.stripePublishableConfigured,
-    stripeCheckoutEnabled,
-  ]);
+  }, [serverMeta.stripeCheckoutConfigured, stripeCheckoutEnabled]);
 
   const radarBadge: QaBadge = rapidOk ? "pass" : "not_configured";
 
@@ -187,12 +183,14 @@ export default function ReleaseCheckClient({
 
         <SmokeSection title="Premium &amp; Stripe" status={stripeBadge}>
           <p>
+            Server Stripe (secret + monthly/yearly price IDs):{" "}
+            {serverMeta.stripeCheckoutConfigured ? "configured" : "missing"}.
             Checkout API:{" "}
             {stripeCheckoutEnabled === null
               ? "…"
               : stripeCheckoutEnabled
-                ? "reports enabled"
-                : "reports disabled"}
+                ? "enabled"
+                : "disabled"}
             .
           </p>
           <LinkRow href="/premium" label="Premium page" />

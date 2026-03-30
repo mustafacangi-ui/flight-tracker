@@ -130,15 +130,43 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ plan }),
         });
-        const data = (await res.json()) as { url?: string; error?: string };
+        let data: { url?: string; error?: string } = {};
+        try {
+          data = (await res.json()) as typeof data;
+        } catch {
+          /* ignore */
+        }
         if (!res.ok) {
-          throw new Error(data.error || "Could not start checkout");
+          const errText = (data.error ?? "").toLowerCase();
+          const configMissing =
+            res.status === 503 &&
+            (data.error === "Stripe is not configured" ||
+              errText.includes("not configured"));
+          if (configMissing) {
+            trackProductEvent(AnalyticsEvents.stripe_payment_failed, {
+              phase: "config_missing",
+            });
+            setCheckoutError(
+              "Premium checkout isn’t available right now. Please try again later."
+            );
+            return;
+          }
+          trackProductEvent(AnalyticsEvents.stripe_payment_failed, {
+            phase: "checkout_start",
+            has_message: Boolean(data.error),
+          });
+          setCheckoutError("Checkout failed. Try again.");
+          return;
         }
         if (data.url) {
           window.location.href = data.url;
           return;
         }
-        throw new Error("No checkout URL returned");
+        trackProductEvent(AnalyticsEvents.stripe_payment_failed, {
+          phase: "checkout_start",
+          has_message: true,
+        });
+        setCheckoutError("Checkout failed. Try again.");
       } catch (e) {
         captureError(e, {
           area: "stripe_checkout_client",
@@ -147,11 +175,9 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
         });
         trackProductEvent(AnalyticsEvents.stripe_payment_failed, {
           phase: "checkout_start",
-          has_message: e instanceof Error && Boolean(e.message),
+          has_message: true,
         });
-        setCheckoutError(
-          e instanceof Error ? e.message : "Checkout failed. Try again."
-        );
+        setCheckoutError("Checkout failed. Try again.");
       } finally {
         setBusy(false);
       }
@@ -219,9 +245,14 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
                     Premium
                   </span>
                   {checkoutEnabled === false ? (
-                    <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wide text-amber-200/90">
-                      Stripe not configured
-                    </span>
+                    <>
+                      <span className="rounded-full border border-violet-500/35 bg-violet-500/10 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wide text-violet-200/90">
+                        QA
+                      </span>
+                      <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wide text-amber-200/90">
+                        Stripe not configured
+                      </span>
+                    </>
                   ) : null}
                 </div>
                 <button
@@ -270,6 +301,13 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
                   </li>
                 ))}
               </ul>
+
+              {checkoutEnabled === false ? (
+                <p className="mt-6 rounded-xl border border-amber-500/20 bg-amber-500/[0.07] px-3.5 py-2.5 text-xs leading-relaxed text-amber-100/90">
+                  Premium checkout is not configured yet. Add Stripe env variables
+                  to enable subscriptions.
+                </p>
+              ) : null}
 
               <p className="mt-6 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-500">
                 Choose billing
@@ -338,7 +376,11 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
               <div className="mt-6 flex flex-col gap-2.5">
                 <button
                   type="button"
-                  disabled={busy || premium}
+                  disabled={
+                    busy ||
+                    premium ||
+                    (checkoutEnabled === true && signedIn !== true)
+                  }
                   onClick={() => void handleSubscribe()}
                   className="w-full rounded-2xl bg-gradient-to-r from-blue-600 via-sky-500 to-indigo-600 py-3.5 text-sm font-bold text-white shadow-[0_12px_40px_rgba(37,99,235,0.4)] transition hover:brightness-110 disabled:opacity-45 active:scale-[0.99]"
                 >
@@ -371,7 +413,7 @@ export default function PremiumUpgradeModal({ open, onClose }: Props) {
               <p className="mt-4 text-center text-[11px] leading-relaxed text-slate-600">
                 {checkoutEnabled
                   ? "Secure payment via Stripe. Subscription renews until you cancel in the customer portal."
-                  : "QA mode: unlocks Premium locally and syncs metadata when signed in. Add Stripe keys for live Checkout."}
+                  : "QA: the button below unlocks Premium locally for testing and syncs account metadata when you’re signed in."}
               </p>
             </div>
           </motion.div>

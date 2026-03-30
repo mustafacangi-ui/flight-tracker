@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { isStripeCheckoutConfigured } from "../../../lib/stripeEnv";
+import { isStripeConfigured } from "../../../lib/stripe/isStripeConfigured";
 import ReleaseCheckClient from "./ReleaseCheckClient";
 
 export const metadata: Metadata = {
@@ -21,7 +21,7 @@ export default function ReleaseCheckPage() {
       null,
     sentryEnabled: Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN?.trim()),
     analyticsEnabled: Boolean(process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim()),
-    stripeCheckoutConfigured: isStripeCheckoutConfigured(),
+    stripeCheckoutConfigured: isStripeConfigured(),
     stripePublishableConfigured: Boolean(
       process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim() &&
         process.env.NEXT_PUBLIC_STRIPE_PRICE_MONTHLY?.trim() &&

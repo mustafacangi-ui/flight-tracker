@@ -1,3 +1,5 @@
+import { isStripeConfigured } from "./stripe/isStripeConfigured";
+
 /**
  * Stripe Checkout + webhooks (server uses secret; browser uses public price IDs).
  */
@@ -20,10 +22,9 @@ export function getStripePriceIds(): { monthly: string; yearly: string } {
   };
 }
 
-/** Server can create Checkout sessions (secret + both recurring prices). */
+/** Alias for `isStripeConfigured` — same rules (secret + both price IDs). */
 export function isStripeCheckoutConfigured(): boolean {
-  const { monthly, yearly } = getStripePriceIds();
-  return Boolean(getStripeSecretKey() && monthly && yearly);
+  return isStripeConfigured();
 }
 
 /**

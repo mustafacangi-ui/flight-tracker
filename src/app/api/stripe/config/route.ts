@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { isStripeCheckoutConfigured } from "../../../../lib/stripeEnv";
+import { isStripeConfigured } from "../../../../lib/stripe/isStripeConfigured";
 
 export async function GET() {
   return NextResponse.json({
-    checkoutEnabled: isStripeCheckoutConfigured(),
+    checkoutEnabled: isStripeConfigured(),
   });
 }
