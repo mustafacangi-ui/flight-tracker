@@ -4,8 +4,16 @@
  */
 
 import type { AeroAirport, AeroAirportFlight, AeroAircraft, AeroMovement, AeroAirline } from "./flightTypes";
-import { captureError } from "./monitoring/captureError";
+import type { FlightDetail, FlightSearchItem, FlightSearchResult } from "./aerodataboxCacheTypes";
+import {
+  buildFlightDetailFromAutocomplete,
+  getPersistentCache,
+  getStaleCache,
+  setPersistentCache,
+} from "./persistentCache";
 import { getRapidApiHost, rapidApiHeaders } from "./server/rapidApiConfig";
+
+export type { FlightDetail, FlightSearchItem, FlightSearchResult } from "./aerodataboxCacheTypes";
 
 // Environment configuration
 export const AERODATABOX_API_KEY = process.env.RAPIDAPI_KEY ?? "";
@@ -77,45 +85,6 @@ if (typeof setInterval !== "undefined") {
   setInterval(clearExpiredCache, 10 * 60 * 1000);
 }
 
-// Types
-export type FlightDetail = {
-  number: string;
-  airline: AeroAirline;
-  departure?: AeroMovement | null;
-  arrival?: AeroMovement | null;
-  aircraft?: AeroAircraft | null;
-  status: string;
-  scheduledDeparture: string | null;
-  scheduledArrival: string | null;
-  estimatedDeparture: string | null;
-  estimatedArrival: string | null;
-  actualDeparture: string | null;
-  actualArrival: string | null;
-  delayMinutes: number;
-  gate: string | null;
-  terminal: string | null;
-  baggageBelt: string | null;
-};
-
-export type FlightSearchItem = {
-  number: string;
-  airline: string;
-  departureAirport: string;
-  arrivalAirport: string;
-  departureCity?: string;
-  arrivalCity?: string;
-  status: string;
-  scheduledTime?: string;
-  score: number;
-};
-
-export type FlightSearchResult = {
-  flights: FlightSearchItem[];
-  query: string;
-  source: "api" | "cache" | "mock" | "aviationstack" | "aerodatabox";
-  timestamp: number;
-};
-
 // Normalize flight number for consistent lookup
 export function normalizeFlightNumber(input: string): string {
   return input
@@ -132,16 +101,16 @@ export function extractAirlineCode(flightNumber: string): string {
 }
 
 // Search flights by query (airline code prefix or full number)
+// Uses persistent cache with 24-hour TTL
 export async function searchFlights(query: string): Promise<FlightSearchResult & { _rawResponse?: unknown }> {
   const normalizedQuery = normalizeFlightNumber(query);
-  const cacheKey = getCacheKey("search", normalizedQuery);
+  const cacheKey = `search:${normalizedQuery}`;
   
   console.log(`[autocomplete] searchFlights called with query="${query}" normalized="${normalizedQuery}"`);
   
-  // Check cache first
-  const cached = getFlightCache<FlightSearchResult>(cacheKey);
+  // Check persistent cache first (24 hour TTL)
+  const cached = await getPersistentCache<FlightSearchResult>(cacheKey, "search");
   if (cached) {
-    console.log(`[autocomplete] CACHE HIT for ${normalizedQuery}, returning ${cached.flights.length} flights`);
     return { ...cached, source: "cache" };
   }
   
@@ -171,11 +140,11 @@ export async function searchFlights(query: string): Promise<FlightSearchResult &
     if (!res.ok) {
       console.log(`[autocomplete] API ERROR: HTTP ${res.status}`);
       if (res.status === 429) {
-        const staleCached = getFlightCache<FlightSearchResult>(cacheKey);
+        const staleCached = await getStaleCache<FlightSearchResult>(cacheKey);
         if (staleCached) {
-          console.log(`[autocomplete] RATE LIMITED - returning stale cache with ${staleCached.flights.length} flights`);
           return { ...staleCached, source: "cache" };
         }
+        console.log(`[cache-miss] 429 and no stale autocomplete for ${normalizedQuery}`);
         return {
           flights: [],
           query: normalizedQuery,
@@ -221,20 +190,20 @@ export async function searchFlights(query: string): Promise<FlightSearchResult &
       query: normalizedQuery,
       source: "api",
       timestamp: Date.now(),
-      _rawResponse: flights.length <= 3 ? data : undefined, // Include raw for small results
+      _rawResponse: flights.length <= 3 ? data : undefined,
     };
     
-    // Cache the result
-    setFlightCache(cacheKey, result, AUTOCOMPLETE_CACHE_TTL_SECONDS);
+    await setPersistentCache(cacheKey, result, "search");
     
     return result;
   } catch (error) {
-    captureError(error, {
-      area: "aerodatabox_search",
-      tags: { query: normalizedQuery },
-      extras: { summary: "Flight search failed" },
-      level: "warning",
-    });
+    console.error(`[autocomplete] Error: ${error}`);
+    
+    // On error, try to return stale cache
+    const staleCached = await getStaleCache<FlightSearchResult>(cacheKey);
+    if (staleCached) {
+      return { ...staleCached, source: "cache" };
+    }
     
     return {
       flights: [],
@@ -264,21 +233,35 @@ function generateFlightNumberFormats(raw: string): string[] {
 }
 
 // Get specific flight by number (searches current and upcoming flights)
+// Uses persistent cache with 24-hour TTL, reuses autocomplete data when available
 export async function getFlightByNumber(flightNumber: string): Promise<FlightDetail | null> {
   const rawInput = flightNumber;
   const normalizedNumber = normalizeFlightNumber(flightNumber);
-  const cacheKey = getCacheKey("flight", normalizedNumber);
+  const cacheKey = `flight:${normalizedNumber}`;
   
   console.log(`[detail-lookup] ========== START ==========`);
   console.log(`[detail-lookup] raw="${rawInput}" normalized="${normalizedNumber}"`);
   
-  // Check cache first
-  const cached = getFlightCache<FlightDetail>(cacheKey);
+  // Check persistent cache first (24 hour TTL)
+  const cached = await getPersistentCache<FlightDetail>(cacheKey, "flight");
   if (cached) {
-    console.log(`[detail-lookup] CACHE HIT - returning cached flight ${cached.number}`);
     return cached;
   }
   
+  // Check if autocomplete already has this flight - reuse that data
+  const searchCacheKey = `search:${normalizedNumber}`;
+  const autocompleteCached = await getPersistentCache<FlightSearchResult>(searchCacheKey, "search");
+  if (autocompleteCached) {
+    const detailFromAutocomplete = buildFlightDetailFromAutocomplete(
+      autocompleteCached,
+      normalizedNumber
+    );
+    if (detailFromAutocomplete) {
+      await setPersistentCache(cacheKey, detailFromAutocomplete, "flight");
+      return detailFromAutocomplete;
+    }
+  }
+
   if (!AERODATABOX_API_KEY) {
     console.log(`[detail-lookup] NO API KEY - cannot search`);
     return null;
@@ -310,7 +293,17 @@ export async function getFlightByNumber(flightNumber: string): Promise<FlightDet
       if (!res.ok) {
         console.log(`[detail-lookup] [${i + 1}] HTTP ERROR: ${res.status}`);
         if (res.status === 429) {
-          console.log(`[detail-lookup] RATE LIMITED - aborting search`);
+          const staleDetail = await getStaleCache<FlightDetail>(cacheKey);
+          if (staleDetail) {
+            return staleDetail;
+          }
+          const staleSearch = await getStaleCache<FlightSearchResult>(searchCacheKey);
+          const fromAuto = staleSearch
+            ? buildFlightDetailFromAutocomplete(staleSearch, normalizedNumber)
+            : null;
+          if (fromAuto) {
+            return fromAuto;
+          }
           return null;
         }
         continue;
@@ -364,7 +357,7 @@ export async function getFlightByNumber(flightNumber: string): Promise<FlightDet
       const detail = normalizeFlightDetail(bestMatchSoFar.flight);
       console.log(`[detail-lookup] RETURNING flight ${detail.number} (${detail.departure?.airport?.iata ?? "?"}→${detail.arrival?.airport?.iata ?? "?"})`);
       
-      setFlightCache(cacheKey, detail, FLIGHT_CACHE_TTL_SECONDS);
+      await setPersistentCache(cacheKey, detail, "flight");
       return detail;
     } else {
       console.log(`[detail-lookup] Best match score (${bestMatchSoFar.score}) below threshold (50), rejecting`);

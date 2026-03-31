@@ -20,6 +20,9 @@
 # production
 /build
 
+# local AeroDataBox persistent JSON cache (see src/lib/persistentCache.ts)
+/.flight-cache/
+
 # misc
 .DS_Store
 *.pem
