@@ -10,8 +10,9 @@ import type {
 import type { SavedFlight } from "../lib/quickAccessStorage";
 import { loadSavedFlights } from "../lib/quickAccessStorage";
 
-const DEBOUNCE_MS = 200;
-const MIN_QUERY_LENGTH = 2;
+const DEBOUNCE_MS = 500;
+const MIN_QUERY_LENGTH = 3;
+const MAX_SUGGESTIONS = 5;
 
 type AirportSuggestion = {
   type: "airport";
@@ -90,18 +91,38 @@ export default function SearchBar({ onSearch }: Props) {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const searchResultsCache = useRef(new Map<string, Suggestion[]>());
+  const searchResultsCache = useRef(new Map<string, { results: Suggestion[]; timestamp: number }>());
+  const pendingRequestRef = useRef<AbortController | null>(null);
+  const lastQueryRef = useRef<string>("");
+
+  const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+  const isCacheValid = (entry: { results: Suggestion[]; timestamp: number } | undefined): boolean => {
+    if (!entry) return false;
+    return Date.now() - entry.timestamp < CACHE_TTL_MS;
+  };
 
   const fetchSuggestions = useCallback(async (q: string) => {
     const cacheKey = q.toLowerCase();
+    
+    // Check memory cache first (with TTL)
     const cached = searchResultsCache.current.get(cacheKey);
-    if (cached) {
-      setSuggestions(cached);
+    if (cached && isCacheValid(cached)) {
+      setSuggestions(cached.results.slice(0, MAX_SUGGESTIONS));
       setHighlightedIndex(0);
       setFetchError(null);
       setLoading(false);
       return;
     }
+
+    // Cancel any pending request
+    if (pendingRequestRef.current) {
+      pendingRequestRef.current.abort();
+    }
+
+    // Create new abort controller for this request
+    const abortController = new AbortController();
+    pendingRequestRef.current = abortController;
 
     setLoading(true);
     setFetchError(null);
@@ -111,12 +132,14 @@ export default function SearchBar({ onSearch }: Props) {
       const isFlightSearch = isLikelyFlightSearch(q);
       const normalizedQuery = normalizeFlightNumber(q);
 
-      // Always search for airports
-      const airportRes = await fetch(`/api/airports?query=${encodeURIComponent(q)}`);
+      // Always search for airports (max 3 results)
+      const airportRes = await fetch(`/api/airports?query=${encodeURIComponent(q)}`, {
+        signal: abortController.signal,
+      });
       if (airportRes.ok) {
         const airportData = (await airportRes.json()) as AirportsApiResponse;
         const airportSuggestions: AirportSuggestion[] = (airportData.airports ?? [])
-          .slice(0, 4)
+          .slice(0, 3)
           .map((a) => ({
             type: "airport",
             code: a.code,
@@ -127,7 +150,7 @@ export default function SearchBar({ onSearch }: Props) {
       }
 
       // Search for flights if query looks like a flight number
-      if (isFlightSearch || q.length >= 2) {
+      if (isFlightSearch || q.length >= MIN_QUERY_LENGTH) {
         const seenFlights = new Set<string>();
         
         // First: search saved flights client-side (prioritize these)
@@ -163,8 +186,14 @@ export default function SearchBar({ onSearch }: Props) {
         }
 
         // Second: search live flights from API
-        const flightRes = await fetch(`/api/flights/search?query=${encodeURIComponent(q)}`);
-        if (flightRes.ok) {
+        const flightRes = await fetch(`/api/flights/search?query=${encodeURIComponent(q)}`, {
+          signal: abortController.signal,
+        });
+        
+        if (flightRes.status === 429) {
+          // Rate limited - show error but keep any cached/saved results we have
+          setFetchError("Search temporarily unavailable. Showing saved results only.");
+        } else if (flightRes.ok) {
           const flightData = (await flightRes.json()) as { flights: FlightSuggestion[] };
           const liveFlights = (flightData.flights ?? [])
             .slice(0, 4)
@@ -174,24 +203,58 @@ export default function SearchBar({ onSearch }: Props) {
         }
       }
 
-      searchResultsCache.current.set(cacheKey, results);
-      setSuggestions(results);
-      setHighlightedIndex(0);
-    } catch {
-      setFetchError("Network error. Check your connection.");
+      // Limit total results to MAX_SUGGESTIONS
+      const limitedResults = results.slice(0, MAX_SUGGESTIONS);
+      
+      // Log what we're showing to the user
+      const flightResults = limitedResults.filter(r => r.type === "flight");
+      console.log(`[SearchBar] AUTOCOMPLETE DISPLAY: ${flightResults.length} flights for "${q}"`);
+      if (flightResults.length > 0) {
+        console.log(`[SearchBar] FLIGHTS SHOWN: ${flightResults.map(f => f.flightNumber).join(", ")}`);
+      }
+      
+      // Store in cache with timestamp
+      searchResultsCache.current.set(cacheKey, { results: limitedResults, timestamp: Date.now() });
+      
+      // Only update state if this request wasn't aborted
+      if (!abortController.signal.aborted) {
+        setSuggestions(limitedResults);
+        setHighlightedIndex(0);
+      }
+    } catch (error) {
+      // Ignore abort errors (user typed more characters)
+      if (error instanceof Error && error.name === "AbortError") {
+        return;
+      }
+      if (!pendingRequestRef.current?.signal.aborted) {
+        setFetchError("Network error. Check your connection.");
+      }
     } finally {
-      setLoading(false);
+      if (pendingRequestRef.current === abortController) {
+        pendingRequestRef.current = null;
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     const q = query.trim();
+    
+    // Don't search if same query as last time
+    if (q === lastQueryRef.current && q.length >= MIN_QUERY_LENGTH) {
+      return;
+    }
+    
     if (q.length < MIN_QUERY_LENGTH) {
       setSuggestions([]);
       setLoading(false);
       setFetchError(null);
+      lastQueryRef.current = "";
       return;
     }
+    
+    lastQueryRef.current = q;
+    
     let cancelled = false;
     const timeout = setTimeout(() => {
       if (!cancelled) void fetchSuggestions(q);
@@ -199,6 +262,11 @@ export default function SearchBar({ onSearch }: Props) {
     return () => {
       cancelled = true;
       clearTimeout(timeout);
+      // Cancel any pending request on unmount/cleanup
+      if (pendingRequestRef.current) {
+        pendingRequestRef.current.abort();
+        pendingRequestRef.current = null;
+      }
     };
   }, [query, fetchSuggestions]);
 

@@ -6,7 +6,7 @@ import type {
 } from "../../../lib/airportSearchTypes";
 import { getRapidApiHost, rapidApiHeaders } from "../../../lib/server/rapidApiConfig";
 
-const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 /** Upstream: GET /airports/search/term?q= (RapidAPI docs); we expose `query` and map to `q`. */
 const UPSTREAM_PATH = "/airports/search/term";
@@ -121,6 +121,19 @@ export async function GET(request: NextRequest) {
   }
 
   if (!res.ok) {
+    // Handle rate limiting - return stale cache if available
+    if (res.status === 429) {
+      const staleCached = searchCache.get(cacheKey);
+      if (staleCached) {
+        return NextResponse.json(staleCached.data);
+      }
+      const body: AirportsApiResponse = { 
+        airports: [], 
+        error: "Rate limited. Please try again later." 
+      };
+      return NextResponse.json(body, { status: 429 });
+    }
+    
     /** Upstream documents min. 3 non-whitespace chars for `q`; treat short queries as empty. */
     if (res.status === 400 && rawQuery.replace(/\s/g, "").length < 3) {
       return NextResponse.json({ airports: [] } satisfies AirportsApiResponse);
@@ -152,7 +165,7 @@ export async function GET(request: NextRequest) {
 
   const items = data.items ?? [];
   const airports: SimplifiedAirport[] = [];
-  for (const item of items) {
+  for (const item of items.slice(0, 5)) { // Limit to 5 results
     const row = simplifyAirport(item);
     if (row) airports.push(row);
   }

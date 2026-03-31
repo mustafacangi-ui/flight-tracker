@@ -10,9 +10,9 @@ import { getRapidApiHost, rapidApiHeaders } from "./server/rapidApiConfig";
 // Environment configuration
 export const AERODATABOX_API_KEY = process.env.RAPIDAPI_KEY ?? "";
 export const AERODATABOX_API_HOST = process.env.RAPIDAPI_HOST ?? getRapidApiHost();
-export const FLIGHT_CACHE_TTL_SECONDS = parseInt(process.env.FLIGHT_CACHE_TTL_SECONDS ?? "300", 10);
-export const AUTOCOMPLETE_CACHE_TTL_SECONDS = parseInt(process.env.AUTOCOMPLETE_CACHE_TTL_SECONDS ?? "180", 10);
-export const AIRPORT_CACHE_TTL_SECONDS = parseInt(process.env.AIRPORT_CACHE_TTL_SECONDS ?? "300", 10);
+export const FLIGHT_CACHE_TTL_SECONDS = parseInt(process.env.FLIGHT_CACHE_TTL_SECONDS ?? "1800", 10); // 30 minutes
+export const AUTOCOMPLETE_CACHE_TTL_SECONDS = parseInt(process.env.AUTOCOMPLETE_CACHE_TTL_SECONDS ?? "900", 10); // 15 minutes
+export const AIRPORT_CACHE_TTL_SECONDS = parseInt(process.env.AIRPORT_CACHE_TTL_SECONDS ?? "900", 10); // 15 minutes
 
 // Cache TTL constants for other providers
 export const FLIGHT_CACHE_TTL = {
@@ -132,17 +132,21 @@ export function extractAirlineCode(flightNumber: string): string {
 }
 
 // Search flights by query (airline code prefix or full number)
-export async function searchFlights(query: string): Promise<FlightSearchResult> {
+export async function searchFlights(query: string): Promise<FlightSearchResult & { _rawResponse?: unknown }> {
   const normalizedQuery = normalizeFlightNumber(query);
   const cacheKey = getCacheKey("search", normalizedQuery);
+  
+  console.log(`[autocomplete] searchFlights called with query="${query}" normalized="${normalizedQuery}"`);
   
   // Check cache first
   const cached = getFlightCache<FlightSearchResult>(cacheKey);
   if (cached) {
+    console.log(`[autocomplete] CACHE HIT for ${normalizedQuery}, returning ${cached.flights.length} flights`);
     return { ...cached, source: "cache" };
   }
   
   if (!AERODATABOX_API_KEY) {
+    console.log(`[autocomplete] NO API KEY - returning mock empty result`);
     return {
       flights: [],
       query: normalizedQuery,
@@ -157,14 +161,21 @@ export async function searchFlights(query: string): Promise<FlightSearchResult> 
     url.searchParams.set("flightNumber", normalizedQuery);
     url.searchParams.set("limit", "10");
     
+    console.log(`[autocomplete] API REQUEST: ${url.toString()}`);
+    
     const res = await fetch(url, {
       headers: rapidApiHeaders(AERODATABOX_API_KEY),
       cache: "no-store",
     });
     
     if (!res.ok) {
+      console.log(`[autocomplete] API ERROR: HTTP ${res.status}`);
       if (res.status === 429) {
-        // Rate limited - return empty but indicate
+        const staleCached = getFlightCache<FlightSearchResult>(cacheKey);
+        if (staleCached) {
+          console.log(`[autocomplete] RATE LIMITED - returning stale cache with ${staleCached.flights.length} flights`);
+          return { ...staleCached, source: "cache" };
+        }
         return {
           flights: [],
           query: normalizedQuery,
@@ -177,6 +188,12 @@ export async function searchFlights(query: string): Promise<FlightSearchResult> 
     
     const data = await res.json() as { flights?: AeroAirportFlight[] };
     const flights = data.flights ?? [];
+    
+    console.log(`[autocomplete] API RESPONSE: ${flights.length} raw flights returned`);
+    
+    if (flights.length > 0) {
+      console.log(`[autocomplete] RAW FLIGHT NUMBERS: ${flights.map(f => f.number).join(", ")}`);
+    }
     
     // Score and format results
     const scoredFlights = flights
@@ -191,13 +208,20 @@ export async function searchFlights(query: string): Promise<FlightSearchResult> 
         scheduledTime: f.departure?.scheduledTime?.local ?? f.departure?.scheduledTime?.utc,
         score: scoreFlightMatch(f.number, normalizedQuery),
       }))
-      .sort((a, b) => b.score - a.score);
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
     
-    const result: FlightSearchResult = {
+    console.log(`[autocomplete] SCORED RESULTS: ${scoredFlights.length} flights after scoring`);
+    if (scoredFlights.length > 0) {
+      console.log(`[autocomplete] TOP RESULT: ${scoredFlights[0].number} (score: ${scoredFlights[0].score})`);
+    }
+    
+    const result: FlightSearchResult & { _rawResponse?: unknown } = {
       flights: scoredFlights,
       query: normalizedQuery,
       source: "api",
       timestamp: Date.now(),
+      _rawResponse: flights.length <= 3 ? data : undefined, // Include raw for small results
     };
     
     // Cache the result
@@ -245,34 +269,38 @@ export async function getFlightByNumber(flightNumber: string): Promise<FlightDet
   const normalizedNumber = normalizeFlightNumber(flightNumber);
   const cacheKey = getCacheKey("flight", normalizedNumber);
   
-  console.log(`[flight-detail] raw=${rawInput} normalized=${normalizedNumber}`);
+  console.log(`[detail-lookup] ========== START ==========`);
+  console.log(`[detail-lookup] raw="${rawInput}" normalized="${normalizedNumber}"`);
   
   // Check cache first
   const cached = getFlightCache<FlightDetail>(cacheKey);
   if (cached) {
-    console.log(`[flight-detail] cache hit for ${normalizedNumber}`);
+    console.log(`[detail-lookup] CACHE HIT - returning cached flight ${cached.number}`);
     return cached;
   }
   
   if (!AERODATABOX_API_KEY) {
-    console.log(`[flight-detail] no API key configured`);
+    console.log(`[detail-lookup] NO API KEY - cannot search`);
     return null;
   }
   
   // Try multiple flight number formats
   const formatsToTry = generateFlightNumberFormats(flightNumber);
-  console.log(`[flight-detail] trying formats: ${formatsToTry.join(", ")}`);
+  console.log(`[detail-lookup] Will try ${formatsToTry.length} formats: [${formatsToTry.join(", ")}]`);
   
-  for (const format of formatsToTry) {
+  let totalFlightsFound = 0;
+  let bestMatchSoFar: { flight: AeroAirportFlight; score: number; format: string } | null = null;
+  
+  for (let i = 0; i < formatsToTry.length; i++) {
+    const format = formatsToTry[i];
     try {
-      console.log(`[flight-detail] trying format "${format}"`);
+      console.log(`[detail-lookup] [${i + 1}/${formatsToTry.length}] Trying format "${format}"`);
       
-      // Use the search endpoint which we know works (from autocomplete)
       const url = new URL(`https://${AERODATABOX_API_HOST}/flights/search`);
       url.searchParams.set("flightNumber", format);
       url.searchParams.set("limit", "10");
       
-      console.log(`[flight-detail] request URL: ${url.toString()}`);
+      console.log(`[detail-lookup] API REQUEST: ${url.toString()}`);
       
       const res = await fetch(url, {
         headers: rapidApiHeaders(AERODATABOX_API_KEY),
@@ -280,99 +308,156 @@ export async function getFlightByNumber(flightNumber: string): Promise<FlightDet
       });
       
       if (!res.ok) {
-        console.log(`[flight-detail] format "${format}" failed: HTTP ${res.status}`);
+        console.log(`[detail-lookup] [${i + 1}] HTTP ERROR: ${res.status}`);
         if (res.status === 429) {
-          console.log(`[flight-detail] rate limited, stopping attempts`);
+          console.log(`[detail-lookup] RATE LIMITED - aborting search`);
           return null;
         }
-        continue; // Try next format
+        continue;
       }
       
       const data = await res.json() as { flights?: AeroAirportFlight[] };
       const flights = data.flights ?? [];
+      totalFlightsFound += flights.length;
       
-      console.log(`[flight-detail] format "${format}" response count=${flights.length}`);
+      console.log(`[detail-lookup] [${i + 1}] SUCCESS: ${flights.length} flights returned`);
       
       if (flights.length === 0) {
-        continue; // Try next format
+        console.log(`[detail-lookup] [${i + 1}] No flights in response, trying next format`);
+        continue;
       }
       
-      // Find best matching flight
-      const match = findBestFlightMatch(flights, normalizedNumber);
+      console.log(`[detail-lookup] [${i + 1}] RAW FLIGHT NUMBERS: [${flights.map(f => `"${f.number}"`).join(", ")}]`);
+      
+      // Find best matching flight from this batch
+      const match = findBestFlightMatchDetailed(flights, normalizedNumber, format);
       
       if (match) {
-        const detail = normalizeFlightDetail(match);
-        console.log(`[flight-detail] selected match=${detail.number} ${detail.departure?.airport?.iata ?? "?"}->${detail.arrival?.airport?.iata ?? "?"}`);
+        console.log(`[detail-lookup] [${i + 1}] FOUND MATCH: "${match.flight.number}" (score: ${match.score})`);
         
-        // Cache the result
-        setFlightCache(cacheKey, detail, FLIGHT_CACHE_TTL_SECONDS);
-        
-        return detail;
+        if (!bestMatchSoFar || match.score > bestMatchSoFar.score) {
+          bestMatchSoFar = { flight: match.flight, score: match.score, format };
+          console.log(`[detail-lookup] [${i + 1}] NEW BEST MATCH (score: ${match.score})`);
+          
+          // If we found a perfect match, stop searching
+          if (match.score >= 100) {
+            console.log(`[detail-lookup] PERFECT MATCH found with format "${format}", stopping search`);
+            break;
+          }
+        }
+      } else {
+        console.log(`[detail-lookup] [${i + 1}] No match found in ${flights.length} flights for format "${format}"`);
       }
     } catch (error) {
-      console.log(`[flight-detail] format "${format}" error: ${error instanceof Error ? error.message : String(error)}`);
-      continue; // Try next format
+      console.log(`[detail-lookup] [${i + 1}] EXCEPTION: ${error instanceof Error ? error.message : String(error)}`);
+      continue;
     }
   }
   
-  console.log(`[flight-detail] no match found for ${normalizedNumber} after trying all formats`);
+  console.log(`[detail-lookup] ========== SEARCH COMPLETE ==========`);
+  console.log(`[detail-lookup] Total flights found across all formats: ${totalFlightsFound}`);
+  
+  if (bestMatchSoFar) {
+    console.log(`[detail-lookup] BEST MATCH: "${bestMatchSoFar.flight.number}" (score: ${bestMatchSoFar.score}, format: "${bestMatchSoFar.format}")`);
+    
+    if (bestMatchSoFar.score >= 50) {
+      const detail = normalizeFlightDetail(bestMatchSoFar.flight);
+      console.log(`[detail-lookup] RETURNING flight ${detail.number} (${detail.departure?.airport?.iata ?? "?"}→${detail.arrival?.airport?.iata ?? "?"})`);
+      
+      setFlightCache(cacheKey, detail, FLIGHT_CACHE_TTL_SECONDS);
+      return detail;
+    } else {
+      console.log(`[detail-lookup] Best match score (${bestMatchSoFar.score}) below threshold (50), rejecting`);
+    }
+  } else {
+    console.log(`[detail-lookup] NO MATCH FOUND after trying all ${formatsToTry.length} formats`);
+  }
+  
+  console.log(`[detail-lookup] ========== END (returning null) ==========`);
   return null;
 }
 
-// Find best matching flight from search results
-function findBestFlightMatch(flights: AeroAirportFlight[], targetNumber: string): AeroAirportFlight | null {
+// Detailed flight matching with full logging
+type MatchResult = { flight: AeroAirportFlight; score: number; reason: string } | null;
+
+function findBestFlightMatchDetailed(flights: AeroAirportFlight[], targetNumber: string, formatUsed: string): MatchResult {
   const targetNormalized = normalizeFlightNumber(targetNumber);
   const targetAirline = extractAirlineCode(targetNormalized);
   const targetNumeric = targetNormalized.replace(/^[A-Z]+/, "");
   
-  console.log(`[flight-detail] matching against target=${targetNormalized} airline=${targetAirline} numeric=${targetNumeric}`);
+  console.log(`[detail-lookup] MATCHING: target="${targetNormalized}" airline="${targetAirline}" numeric="${targetNumeric}" (format: "${formatUsed}")`);
   
-  // Score each flight
-  const scored = flights.map((f) => {
+  if (flights.length === 0) {
+    console.log(`[detail-lookup] MATCHING: No flights to match against`);
+    return null;
+  }
+  
+  // Score each flight with detailed logging
+  const scored = flights.map((f, idx) => {
     const flightNormalized = normalizeFlightNumber(f.number);
     const flightAirline = extractAirlineCode(flightNormalized);
     const flightNumeric = flightNormalized.replace(/^[A-Z]+/, "");
     
     let score = 0;
+    let reason = "no match";
     
     // Exact match (TK94 === TK94)
     if (flightNormalized === targetNormalized) {
       score = 100;
+      reason = "exact match";
     }
     // Same airline code and numeric part (TK94 matches TK0094)
     else if (flightAirline === targetAirline && flightNumeric === targetNumeric) {
       score = 90;
+      reason = "same airline+numeric";
     }
     // Same airline code and numeric part ignoring leading zeros
     else if (flightAirline === targetAirline && parseInt(flightNumeric, 10) === parseInt(targetNumeric, 10)) {
       score = 80;
+      reason = "same airline+numeric(ignore leading zeros)";
     }
     // Same airline code only
     else if (flightAirline === targetAirline) {
       score = 50;
+      reason = "same airline only";
     }
     // Contains the target number
     else if (flightNormalized.includes(targetNumeric)) {
       score = 30;
+      reason = "contains target numeric";
     }
     
-    return { flight: f, score, normalized: flightNormalized };
+    return { 
+      flight: f, 
+      score, 
+      reason, 
+      normalized: flightNormalized,
+      airline: flightAirline,
+      numeric: flightNumeric,
+      idx 
+    };
   });
   
   // Sort by score descending
   scored.sort((a, b) => b.score - a.score);
   
-  console.log(`[flight-detail] top matches: ${scored.slice(0, 3).map(s => `${s.normalized}(${s.score})`).join(", ")}`);
+  // Log all scored results
+  console.log(`[detail-lookup] MATCHING RESULTS for ${flights.length} flights:`);
+  scored.slice(0, 5).forEach(s => {
+    console.log(`[detail-lookup]   #${s.idx}: "${s.normalized}" (airline:${s.airline}, numeric:${s.numeric}) => score:${s.score} (${s.reason})`);
+  });
   
-  // Return best match if score is good enough
-  if (scored.length > 0 && scored[0].score >= 50) {
-    return scored[0].flight;
+  const best = scored[0];
+  
+  if (best.score >= 50) {
+    console.log(`[detail-lookup] SELECTED: "${best.normalized}" with score ${best.score} (${best.reason})`);
+    return { flight: best.flight, score: best.score, reason: best.reason };
   }
   
-  // If no good match but we have flights, return the first one (closest in time)
-  if (scored.length > 0) {
-    console.log(`[flight-detail] no strong match, using first result: ${scored[0].normalized}`);
-    return scored[0].flight;
+  if (best.score > 0) {
+    console.log(`[detail-lookup] REJECTED: Best match "${best.normalized}" score ${best.score} below threshold 50`);
+  } else {
+    console.log(`[detail-lookup] NO MATCH: No flight matched target "${targetNormalized}"`);
   }
   
   return null;
