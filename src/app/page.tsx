@@ -772,31 +772,6 @@ export default function Home() {
                       Board
                     </button>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-2 md:flex md:justify-center">
-                    <button
-                      type="button"
-                      onClick={() => setBoardFilter("upcoming")}
-                      className={`w-full rounded-lg px-3 py-2.5 text-sm md:w-auto md:px-4 md:py-2 ${
-                        boardFilter === "upcoming"
-                          ? "bg-sky-600 text-white"
-                          : "bg-gray-700 text-gray-300"
-                      }`}
-                    >
-                      Upcoming
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBoardFilter("all")}
-                      className={`w-full rounded-lg px-3 py-2.5 text-sm md:w-auto md:px-4 md:py-2 ${
-                        boardFilter === "all"
-                          ? "bg-sky-600 text-white"
-                          : "bg-gray-700 text-gray-300"
-                      }`}
-                    >
-                      All flights
-                    </button>
-                  </div>
                 </div>
               </div>
 
@@ -820,21 +795,13 @@ export default function Home() {
                       }}
                     >
                       {showUpcomingEmptyForMode ? (
-                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-10 text-center">
+                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-8 text-center">
                           <p className="text-sm font-medium text-amber-100/95">
                             No upcoming flights in the next 3 hours
                           </p>
                           <p className="mt-2 text-xs text-amber-200/70">
-                            Completed or departed flights are hidden in this
-                            view.
+                            Try another airport or check back later.
                           </p>
-                          <button
-                            type="button"
-                            onClick={() => setBoardFilter("all")}
-                            className="mt-5 rounded-lg bg-amber-500/90 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
-                          >
-                            Show all flights
-                          </button>
                         </div>
                       ) : (
                         <FlightList
@@ -861,17 +828,13 @@ export default function Home() {
                       }}
                     >
                       {showUpcomingEmptyForMode ? (
-                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-10 text-center">
+                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-8 text-center">
                           <p className="text-sm font-medium text-amber-100/95">
                             No upcoming flights in the next 3 hours
                           </p>
-                          <button
-                            type="button"
-                            onClick={() => setBoardFilter("all")}
-                            className="mt-5 rounded-lg bg-amber-500/90 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
-                          >
-                            Show all flights
-                          </button>
+                          <p className="mt-2 text-xs text-amber-200/70">
+                            Try another airport or check back later.
+                          </p>
                         </div>
                       ) : (
                         <FlightBoard
