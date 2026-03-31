@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { RATE_LIMIT_MESSAGE } from "../lib/apiMessages";
 import type {
   AirportsApiResponse,
   SimplifiedAirport,
@@ -12,14 +11,44 @@ import type {
 const DEBOUNCE_MS = 200;
 const MIN_QUERY_LENGTH = 2;
 
+type AirportSuggestion = {
+  type: "airport";
+  code: string;
+  name: string;
+  city?: string;
+};
+
+type FlightSuggestion = {
+  type: "flight";
+  flightNumber: string;
+  airline: string;
+  departureAirport: string;
+  arrivalAirport: string;
+  arrivalCity?: string;
+};
+
+type Suggestion = AirportSuggestion | FlightSuggestion;
+
 type Props = {
   onSearch?: (value: string) => void;
 };
 
+function isFlightNumberLike(query: string): boolean {
+  return /^[A-Z]{2,3}\d{1,4}$/i.test(query.trim());
+}
+
+function isLikelyFlightSearch(query: string): boolean {
+  const q = query.trim().toUpperCase();
+  if (/^[A-Z]{2,3}\d/.test(q)) return true;
+  if (q.length <= 3 && /^[A-Z]+$/.test(q)) return false;
+  if (q.length > 3 && /\d/.test(q)) return true;
+  return false;
+}
+
 export default function SearchBar({ onSearch }: Props) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SimplifiedAirport[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -27,91 +56,85 @@ export default function SearchBar({ onSearch }: Props) {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const searchResultsCache = useRef(new Map<string, SimplifiedAirport[]>());
+  const searchResultsCache = useRef(new Map<string, Suggestion[]>());
+
+  const fetchSuggestions = useCallback(async (q: string) => {
+    const cacheKey = q.toLowerCase();
+    const cached = searchResultsCache.current.get(cacheKey);
+    if (cached) {
+      setSuggestions(cached);
+      setHighlightedIndex(0);
+      setFetchError(null);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setFetchError(null);
+
+    try {
+      const results: Suggestion[] = [];
+      const isFlightSearch = isLikelyFlightSearch(q);
+
+      if (!isFlightSearch || q.length <= 4) {
+        const airportRes = await fetch(`/api/airports?query=${encodeURIComponent(q)}`);
+        if (airportRes.ok) {
+          const airportData = (await airportRes.json()) as AirportsApiResponse;
+          const airportSuggestions: AirportSuggestion[] = (airportData.airports ?? [])
+            .slice(0, 4)
+            .map((a) => ({
+              type: "airport",
+              code: a.code,
+              name: a.name,
+              city: a.city,
+            }));
+          results.push(...airportSuggestions);
+        }
+      }
+
+      if (isFlightSearch || q.length >= 3) {
+        const flightRes = await fetch(`/api/flights/search?query=${encodeURIComponent(q)}`);
+        if (flightRes.ok) {
+          const flightData = (await flightRes.json()) as { flights: FlightSuggestion[] };
+          const flightSuggestions = (flightData.flights ?? [])
+            .slice(0, 4)
+            .map((f) => ({ ...f, type: "flight" as const }));
+          results.push(...flightSuggestions);
+        }
+      }
+
+      searchResultsCache.current.set(cacheKey, results);
+      setSuggestions(results);
+      setHighlightedIndex(0);
+    } catch {
+      setFetchError("Network error. Check your connection.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     const q = query.trim();
-
     if (q.length < MIN_QUERY_LENGTH) {
-      setResults([]);
+      setSuggestions([]);
       setLoading(false);
       setFetchError(null);
       return;
     }
-
     let cancelled = false;
-
     const timeout = setTimeout(() => {
-      void (async () => {
-        const cacheKey = q.toLowerCase();
-        const cached = searchResultsCache.current.get(cacheKey);
-        if (cached) {
-          if (!cancelled) {
-            setResults(cached);
-            setHighlightedIndex(0);
-            setFetchError(null);
-            setLoading(false);
-          }
-          return;
-        }
-
-        setLoading(true);
-        setFetchError(null);
-        try {
-          const res = await fetch(
-            `/api/airports?query=${encodeURIComponent(q)}`
-          );
-
-          let data: Partial<AirportsApiResponse> = {};
-          try {
-            data = (await res.json()) as AirportsApiResponse;
-          } catch {
-            /* ignore parse errors */
-          }
-
-          if (cancelled) return;
-          if (!res.ok) {
-            if (res.status === 429) {
-              setFetchError(RATE_LIMIT_MESSAGE);
-            } else {
-              setResults([]);
-              setFetchError(
-                data.error ?? "Could not load airports. Try again shortly."
-              );
-            }
-            return;
-          }
-          const list = [...(data.airports ?? [])];
-          searchResultsCache.current.set(cacheKey, list);
-          setResults(list);
-          setHighlightedIndex(0);
-          if (data.error) setFetchError(data.error);
-          else setFetchError(null);
-        } catch {
-          if (!cancelled) {
-            setResults([]);
-            setFetchError(
-              "Network error. Check your connection and try again."
-            );
-          }
-        } finally {
-          if (!cancelled) setLoading(false);
-        }
-      })();
+      if (!cancelled) void fetchSuggestions(q);
     }, DEBOUNCE_MS);
-
     return () => {
       cancelled = true;
       clearTimeout(timeout);
     };
-  }, [query]);
+  }, [query, fetchSuggestions]);
 
   useEffect(() => {
     const onDocMouseDown = (e: MouseEvent) => {
       const el = rootRef.current;
-      if (el && !el.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      if (el && !el.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", onDocMouseDown);
     return () => document.removeEventListener("mousedown", onDocMouseDown);
@@ -120,43 +143,46 @@ export default function SearchBar({ onSearch }: Props) {
   const showPanel = open && query.trim().length >= MIN_QUERY_LENGTH;
 
   const handleSelect = useCallback(
-    (a: SimplifiedAirport) => {
+    (s: Suggestion) => {
       setQuery("");
-      setResults([]);
+      setSuggestions([]);
       setLoading(false);
       setOpen(false);
       setFetchError(null);
-      // Redirect to airport page
-      router.push(`/airport/${encodeURIComponent(a.code)}`);
+      if (s.type === "airport") {
+        router.push(`/airport/${encodeURIComponent(s.code)}`);
+      } else {
+        router.push(`/flight/${encodeURIComponent(s.flightNumber)}`);
+      }
     },
     [router]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!showPanel || results.length === 0) {
+    if (!showPanel || suggestions.length === 0) {
       if (e.key === "Enter" && query.trim()) {
-        // If no results shown but user pressed Enter, try to navigate with the raw query
-        const code = query.trim().toUpperCase();
-        if (code.length >= 2) {
-          router.push(`/airport/${encodeURIComponent(code)}`);
-          setQuery("");
+        const q = query.trim().toUpperCase();
+        if (isFlightNumberLike(q)) {
+          router.push(`/flight/${encodeURIComponent(q)}`);
+        } else if (q.length >= 2) {
+          router.push(`/airport/${encodeURIComponent(q)}`);
         }
+        setQuery("");
       }
       return;
     }
-
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
-        setHighlightedIndex((i) => (i + 1) % results.length);
+        setHighlightedIndex((i) => (i + 1) % suggestions.length);
         break;
       case "ArrowUp":
         e.preventDefault();
-        setHighlightedIndex((i) => (i - 1 + results.length) % results.length);
+        setHighlightedIndex((i) => (i - 1 + suggestions.length) % suggestions.length);
         break;
       case "Enter":
         e.preventDefault();
-        handleSelect(results[highlightedIndex]);
+        handleSelect(suggestions[highlightedIndex]);
         break;
       case "Escape":
         setOpen(false);
@@ -165,8 +191,14 @@ export default function SearchBar({ onSearch }: Props) {
     }
   };
 
-  const formatLine = (a: SimplifiedAirport) =>
+  const formatAirportLine = (a: AirportSuggestion) =>
     `${a.code} — ${a.name}${a.city ? `, ${a.city}` : ""}`;
+
+  const formatFlightLine = (f: FlightSuggestion) =>
+    `${f.flightNumber} — ${f.airline} → ${f.arrivalCity ?? f.arrivalAirport}`;
+
+  const airportSuggestions = suggestions.filter((s): s is AirportSuggestion => s.type === "airport");
+  const flightSuggestions = suggestions.filter((s): s is FlightSuggestion => s.type === "flight");
 
   return (
     <div ref={rootRef} className="relative flex w-full flex-col gap-2.5">
@@ -183,40 +215,76 @@ export default function SearchBar({ onSearch }: Props) {
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder="Search airport (IST, SAW, FRA...)"
+          placeholder="Search airport (IST) or flight (TK123)..."
           className="w-full rounded-xl border border-gray-700 bg-gray-900/80 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-blue-500 focus:outline-none md:px-4 md:py-3"
         />
       </div>
 
       {showPanel ? (
         <div
-          className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-auto rounded-xl border border-gray-700 bg-gray-900 py-1 shadow-xl shadow-black/40"
+          className="absolute left-0 right-0 top-full z-20 mt-1 max-h-80 overflow-auto rounded-xl border border-gray-700 bg-gray-900 py-2 shadow-xl shadow-black/40"
           role="listbox"
         >
           {loading ? (
             <p className="px-3 py-2.5 text-sm text-gray-400">Searching…</p>
           ) : fetchError ? (
             <p className="px-3 py-2.5 text-sm text-red-300">{fetchError}</p>
-          ) : results.length === 0 ? (
+          ) : suggestions.length === 0 ? (
             <p className="px-3 py-2.5 text-sm text-gray-400">
-              No matching airports. Press Enter to try {query.trim().toUpperCase()}.
+              No matches. Press Enter to search {query.trim().toUpperCase()}.
             </p>
           ) : (
-            results.map((a, index) => (
-              <button
-                key={`${a.code}-${a.name}`}
-                type="button"
-                onClick={() => handleSelect(a)}
-                className={`w-full px-3 py-2.5 text-left text-sm transition hover:bg-gray-800 ${
-                  index === highlightedIndex
-                    ? "bg-gray-800 text-white"
-                    : "text-gray-200"
-                }`}
-                onMouseEnter={() => setHighlightedIndex(index)}
-              >
-                {formatLine(a)}
-              </button>
-            ))
+            <>
+              {airportSuggestions.length > 0 && (
+                <div className="px-2 pb-2">
+                  <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                    Airports
+                  </div>
+                  {airportSuggestions.map((a, index) => (
+                    <button
+                      key={`airport-${a.code}`}
+                      type="button"
+                      onClick={() => handleSelect(a)}
+                      className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition hover:bg-gray-800 ${
+                        index === highlightedIndex ? "bg-gray-800 text-white" : "text-gray-200"
+                      }`}
+                      onMouseEnter={() => setHighlightedIndex(index)}
+                    >
+                      <span className="rounded bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-medium text-blue-300">
+                        Airport
+                      </span>
+                      <span>{formatAirportLine(a)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {flightSuggestions.length > 0 && (
+                <div className="border-t border-gray-800 px-2 pt-2">
+                  <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+                    Flights
+                  </div>
+                  {flightSuggestions.map((f, index) => {
+                    const globalIndex = airportSuggestions.length + index;
+                    return (
+                      <button
+                        key={`flight-${f.flightNumber}`}
+                        type="button"
+                        onClick={() => handleSelect(f)}
+                        className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition hover:bg-gray-800 ${
+                          globalIndex === highlightedIndex ? "bg-gray-800 text-white" : "text-gray-200"
+                        }`}
+                        onMouseEnter={() => setHighlightedIndex(globalIndex)}
+                      >
+                        <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
+                          Flight
+                        </span>
+                        <span>{formatFlightLine(f)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
       ) : null}
