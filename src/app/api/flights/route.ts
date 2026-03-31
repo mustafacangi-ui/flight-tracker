@@ -1,50 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { captureError } from "../../../lib/monitoring/captureError";
-import { getAirportFids } from "../../../lib/server/airportFids";
+import { getAirportFlightsHybrid } from "../../../lib/flightProviders";
 
 export async function GET(request: NextRequest) {
-  const apiKey = process.env.RAPIDAPI_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      {
-        error: "Missing RAPIDAPI_KEY environment variable.",
-        departures: [],
-        arrivals: [],
-      },
-      { status: 503 }
-    );
-  }
-
   const param =
     request.nextUrl.searchParams.get("airport")?.trim().toUpperCase() || "IST";
 
-  const result = await getAirportFids(param, apiKey);
+  try {
+    const result = await getAirportFlightsHybrid(param);
 
-  if (!result.ok) {
-    if (result.status >= 500) {
-      captureError(new Error(result.error || "Airport FIDS error"), {
-        area: "api_flights",
-        tags: { airport: param, status: String(result.status) },
-        level: "warning",
-      });
-    }
-    if (result.status === 429 && result.fallback) {
+    // Check if we got real data or empty results
+    const hasData = result.departures.length > 0 || result.arrivals.length > 0;
+    
+    if (!hasData && result.source === "mock") {
+      // All providers failed
       return NextResponse.json(
-        {
-          error: result.error,
+        { 
+          error: "Unable to fetch flight data from any provider",
           departures: [],
           arrivals: [],
-          fallback: true,
+          source: result.source,
         },
-        { status: 429 }
+        { status: 503 }
       );
     }
+
+    return NextResponse.json({
+      departures: result.departures,
+      arrivals: result.arrivals,
+      timestamp: result.timestamp,
+      source: result.source,
+    });
+  } catch (error) {
+    captureError(error instanceof Error ? error : new Error(String(error)), {
+      area: "api_flights",
+      tags: { airport: param },
+      level: "error",
+    });
+    
     return NextResponse.json(
-      { error: result.error, departures: [], arrivals: [] },
-      { status: result.status >= 400 ? result.status : 502 }
+      { 
+        error: "Failed to fetch flight data",
+        departures: [],
+        arrivals: [],
+      },
+      { status: 500 }
     );
   }
-
-  return NextResponse.json(result.data);
 }

@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 
-import {
-  getMockFlightDetail,
-  isMockFlightRegistered,
-} from "../../../lib/mockFlightDetails";
+import { getFlightHybrid, type FlightDetail } from "../../../lib/flightProviders";
 import FlightDetailClient from "./FlightDetailClient";
 
 export async function generateMetadata({
@@ -12,24 +9,31 @@ export async function generateMetadata({
   params: Promise<{ flightNumber: string }>;
 }): Promise<Metadata> {
   const { flightNumber } = await params;
-  let decoded = flightNumber;
-  try {
-    decoded = decodeURIComponent(flightNumber);
-  } catch {
-    /* raw */
-  }
-  const detail = getMockFlightDetail(decoded);
-  const found = isMockFlightRegistered(decoded);
-  const dep = detail.departureAirportCode ?? "—";
-  const arr = detail.arrivalAirportCode ?? "—";
-  const fn = detail.flightNumber ?? "Flight";
+  
+  const rawFlightNumber = flightNumber ?? ''
+  const normalizedFlightNumber = decodeURIComponent(rawFlightNumber)
+    .replace(/\s+/g, '')
+    .replace(/-/g, '')
+    .toUpperCase()
+  
+  console.log('[flight-page] raw=', rawFlightNumber)
+  console.log('[flight-page] normalized=', normalizedFlightNumber)
+  
+  const flight = await getFlightHybrid(normalizedFlightNumber);
+  
+  const found = !!flight;
+  const dep = flight?.departure?.airport?.iata ?? flight?.departure?.airport?.icao ?? "—";
+  const arr = flight?.arrival?.airport?.iata ?? flight?.arrival?.airport?.icao ?? "—";
+  const fn = flight?.number ?? normalizedFlightNumber;
+  const depCity = flight?.departure?.airport?.municipalityName ?? dep;
+  const arrCity = flight?.arrival?.airport?.municipalityName ?? arr;
 
   const title = found
     ? `${fn} · ${dep} → ${arr}`
     : "Flight not found";
 
   const description = found
-    ? `Status, gates, and timeline for ${fn} from ${detail.departureCity ?? dep} to ${detail.arrivalCity ?? arr}.`
+    ? `Status, gates, and timeline for ${fn} from ${depCity} to ${arrCity}.`
     : "This flight could not be found.";
 
   return {
@@ -69,15 +73,23 @@ export default async function FlightDetailPage({
 }) {
   const { flightNumber } = await params;
 
-  let decoded = flightNumber;
-  try {
-    decoded = decodeURIComponent(flightNumber);
-  } catch {
-    /* use raw segment */
-  }
+  const rawFlightNumber = flightNumber ?? ''
+  const normalizedFlightNumber = decodeURIComponent(rawFlightNumber)
+    .replace(/\s+/g, '')
+    .replace(/-/g, '')
+    .toUpperCase()
 
-  const detail = getMockFlightDetail(decoded);
-  const found = isMockFlightRegistered(decoded);
+  console.log('[flight-page] raw=', rawFlightNumber)
+  console.log('[flight-page] normalized=', normalizedFlightNumber)
 
-  return <FlightDetailClient detail={detail} found={found} />;
+  const flight = await getFlightHybrid(normalizedFlightNumber);
+  const found = !!flight;
+
+  console.log('[flight-page] flight found:', found)
+  console.log('[flight-page] flight data:', flight ? 'EXISTS' : 'NULL')
+
+  // Serialize to ensure it's JSON-safe for client component
+  const safeFlight = flight ? JSON.parse(JSON.stringify(flight)) : null;
+
+  return <FlightDetailClient flight={safeFlight} found={found} />;
 }

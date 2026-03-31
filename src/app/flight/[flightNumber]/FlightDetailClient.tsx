@@ -38,13 +38,17 @@ import type { FlightDetail } from "../../../lib/flightDetailsTypes";
 import { trackEvent } from "../../../lib/localAnalytics";
 import { recordRecentFlight } from "../../../lib/recentFlightsStorage";
 import { savedFlightPayloadFromDetail } from "../../../lib/savedFlightPayload";
+import { adaptAeroFlightToLegacy } from "../../../lib/flightAdapter";
+import type { FlightDetail as AeroFlightDetail } from "../../../lib/aerodatabox";
 
 type Props = {
-  detail: FlightDetail;
+  flight: AeroFlightDetail | null;
   found: boolean;
 };
 
-export default function FlightDetailClient({ detail, found }: Props) {
+export default function FlightDetailClient({ flight, found }: Props) {
+  console.log('[FlightDetailClient] props received:', { flight: flight ? flight.number : null, found })
+  
   const router = useRouter();
   const [copied, setCopied] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
@@ -52,17 +56,32 @@ export default function FlightDetailClient({ detail, found }: Props) {
   const { openUpgrade } = useUpgradeModal();
   const mapPremium = usePremiumFlag();
 
-  const flight = useMemo(
-    () =>
-      mergeAircraftTailIntelligence(mergeFlightDetailWithFallbacks(detail)),
-    [detail]
-  );
+  // Convert AeroDataBox flight to legacy format
+  const legacyFlight = useMemo(() => {
+    console.log('[FlightDetailClient] adaptAeroFlightToLegacy input:', flight ? flight.number : null)
+    const result = adaptAeroFlightToLegacy(flight);
+    console.log('[FlightDetailClient] adaptAeroFlightToLegacy output:', result ? 'SUCCESS' : 'NULL')
+    return result;
+  }, [flight]);
 
-  const detailPayload = useMemo(
-    () => savedFlightPayloadFromDetail(flight),
-    [flight]
-  );
-  const tracked = isFlightTracked(flight.flightNumber);
+  const flightDetail = useMemo(() => {
+    console.log('[FlightDetailClient] building flightDetail, legacyFlight:', legacyFlight ? 'EXISTS' : 'NULL')
+    if (!legacyFlight) return null;
+    const result = mergeAircraftTailIntelligence(mergeFlightDetailWithFallbacks(legacyFlight));
+    console.log('[FlightDetailClient] flightDetail result:', result ? 'EXISTS' : 'NULL')
+    return result;
+  }, [legacyFlight]);
+
+  const detailPayload = useMemo(() => {
+    console.log('[FlightDetailClient] building detailPayload, flightDetail:', flightDetail ? 'EXISTS' : 'NULL')
+    if (!flightDetail) return null;
+    const result = savedFlightPayloadFromDetail(flightDetail);
+    console.log('[FlightDetailClient] detailPayload result:', result ? 'EXISTS' : 'NULL')
+    return result;
+  }, [flightDetail]);
+  
+  const flightNumber = flight?.number ?? "—";
+  const tracked = isFlightTracked(flightNumber);
 
   const shareUrl = useCallback(() => {
     if (typeof window === "undefined") return "";
@@ -80,24 +99,25 @@ export default function FlightDetailClient({ detail, found }: Props) {
   }, [shareUrl]);
 
   useEffect(() => {
-    if (!found) return;
-    trackEvent("flight_detail_open", { flightNumber: flight.flightNumber });
-  }, [found, flight.flightNumber]);
+    if (!found || !flight) return;
+    trackEvent("flight_detail_open", { flightNumber: flightDetail?.flightNumber ?? flightNumber });
+  }, [found, flight, flightDetail?.flightNumber, flightNumber]);
 
   useEffect(() => {
-    if (!found) return;
-    const dep = flight.departureAirportCode ?? "—";
-    const arr = flight.arrivalAirportCode ?? "—";
-    recordRecentFlight(flight.flightNumber, `${dep} → ${arr}`);
+    if (!found || !flight) return;
+    const dep = flightDetail?.departureAirportCode ?? "—";
+    const arr = flightDetail?.arrivalAirportCode ?? "—";
+    recordRecentFlight(flightNumber, `${dep} → ${arr}`);
   }, [
     found,
-    flight.flightNumber,
-    flight.departureAirportCode,
-    flight.arrivalAirportCode,
+    flight,
+    flightNumber,
+    flightDetail?.departureAirportCode,
+    flightDetail?.arrivalAirportCode,
   ]);
 
   useEffect(() => {
-    if (!found) return;
+    if (!found || !flight) return;
     const scrollToAlerts = () => {
       if (typeof window === "undefined") return;
       if (window.location.hash !== "#flight-alerts") return;
@@ -112,13 +132,16 @@ export default function FlightDetailClient({ detail, found }: Props) {
     return () => window.removeEventListener("hashchange", scrollToAlerts);
   }, [found]);
 
-  if (!found) {
+  // Don't render flight details if we don't have flight data
+  console.log('[FlightDetailClient] checking !found || !flight:', { found, hasFlight: !!flight })
+  if (!found || !flight) {
+    console.log('[FlightDetailClient] RENDERING NOT FOUND STATE')
     return (
       <div className="min-h-screen bg-gray-950 px-4 py-10 text-white sm:px-6">
         <div className="mx-auto max-w-lg text-center">
           <h1 className="text-xl font-semibold text-white">Flight not found</h1>
           <p className="mt-2 text-sm text-gray-400">
-            This flight may no longer be available.
+            This flight may no longer be available or has not been scheduled yet.
           </p>
           <Link
             href="/"
@@ -131,9 +154,27 @@ export default function FlightDetailClient({ detail, found }: Props) {
     );
   }
 
-  const badges = flight.badges ?? [];
-  const riskFactors = flight.delayRiskFactors ?? [];
-  const timelineEvents = flight.timelineEvents ?? [];
+  // Ensure we have processed flight data before rendering
+  console.log('[FlightDetailClient] checking !flightDetail || !detailPayload:', { hasFlightDetail: !!flightDetail, hasDetailPayload: !!detailPayload })
+  if (!flightDetail || !detailPayload) {
+    console.log('[FlightDetailClient] RENDERING LOADING STATE')
+    return (
+      <div className="min-h-screen bg-gray-950 px-4 py-10 text-white sm:px-6">
+        <div className="mx-auto max-w-lg text-center">
+          <h1 className="text-xl font-semibold text-white">{flight.number}</h1>
+          <p className="mt-2 text-sm text-gray-400">
+            Loading flight details...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  console.log('[FlightDetailClient] RENDERING FULL FLIGHT DETAIL')
+
+  const badges = flightDetail.badges ?? [];
+  const riskFactors = flightDetail.delayRiskFactors ?? [];
+  const timelineEvents = flightDetail.timelineEvents ?? [];
 
   return (
     <motion.div
@@ -147,7 +188,7 @@ export default function FlightDetailClient({ detail, found }: Props) {
         aria-hidden
       />
       <FlightDetailActionBar
-        flightNumber={flight.flightNumber}
+        flightNumber={flightNumber}
         payload={detailPayload}
         copied={copied}
         onShare={() => void copyLink()}
@@ -157,7 +198,7 @@ export default function FlightDetailClient({ detail, found }: Props) {
 
       <div className="relative z-[1] mx-auto w-full max-w-6xl pb-28 lg:pb-10 lg:pr-[15rem]">
         <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
-          <DataProvenanceBadge kind="mock" />
+          <DataProvenanceBadge kind="real_api" />
         </div>
         <button
           type="button"
@@ -170,7 +211,7 @@ export default function FlightDetailClient({ detail, found }: Props) {
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,2fr)_360px] lg:items-start">
           <div className="flex min-w-0 flex-col gap-6">
             <FlightHeroDashboard
-              flight={flight}
+              flight={flightDetail}
               payload={detailPayload}
               copied={copied}
               onShare={() => void copyLink()}
@@ -189,7 +230,7 @@ export default function FlightDetailClient({ detail, found }: Props) {
             </motion.div>
 
             {mapPremium ? (
-              <FlightLiveRouteMapSection detail={flight} />
+              <FlightLiveRouteMapSection detail={flightDetail} />
             ) : (
               <PremiumLiveMapTeaser
                 onUnlock={() =>
@@ -198,96 +239,96 @@ export default function FlightDetailClient({ detail, found }: Props) {
               />
             )}
 
-            <FlightProgress detail={flight} />
+            <FlightProgress detail={flightDetail} />
 
-            <FlightWalletEventTimeline flight={flight} />
+            <FlightWalletEventTimeline flight={flightDetail} />
 
-            {flight.stats ? (
+            {flightDetail.stats ? (
               <motion.div
                 initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.12, duration: 0.35 }}
               >
-                <FlightStatsRow stats={flight.stats} />
+                <FlightStatsRow stats={flightDetail.stats} />
               </motion.div>
             ) : null}
 
-            <FlightAviationDelightSection detail={flight} />
+            <FlightAviationDelightSection detail={flightDetail} />
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <AirportInfoCard
                 variant="departure"
-                airportCode={flight.departureAirportCode ?? "—"}
-                airportName={flight.departureAirportName ?? "—"}
-                city={flight.departureCity}
-                scheduledTime={flight.departureTime}
+                airportCode={flightDetail.departureAirportCode ?? "—"}
+                airportName={flightDetail.departureAirportName ?? "—"}
+                city={flightDetail.departureCity}
+                scheduledTime={flightDetail.departureTime}
                 estimatedTime={
-                  flight.estimatedDepartureTime ?? flight.departureTime
+                  flightDetail.estimatedDepartureTime ?? flightDetail.departureTime
                 }
-                actualTime={flight.actualDepartureTime}
-                terminal={flight.departureTerminal ?? flight.terminal}
-                gate={flight.gate}
-                timeZoneIana={flight.departureTimeZone}
+                actualTime={flightDetail.actualDepartureTime}
+                terminal={flightDetail.departureTerminal ?? flightDetail.terminal}
+                gate={flightDetail.gate}
+                timeZoneIana={flightDetail.departureTimeZone}
                 motionIndex={0}
               />
               <AirportInfoCard
                 variant="arrival"
-                airportCode={flight.arrivalAirportCode ?? "—"}
-                airportName={flight.arrivalAirportName ?? "—"}
-                city={flight.arrivalCity}
-                scheduledTime={flight.arrivalTime}
+                airportCode={flightDetail.arrivalAirportCode ?? "—"}
+                airportName={flightDetail.arrivalAirportName ?? "—"}
+                city={flightDetail.arrivalCity}
+                scheduledTime={flightDetail.arrivalTime}
                 estimatedTime={
-                  flight.estimatedArrivalTime ?? flight.arrivalTime
+                  flightDetail.estimatedArrivalTime ?? flightDetail.arrivalTime
                 }
-                actualTime={flight.actualArrivalTime}
-                terminal={flight.arrivalTerminal}
-                gate={flight.arrivalGate}
-                timeZoneIana={flight.arrivalTimeZone}
+                actualTime={flightDetail.actualArrivalTime}
+                terminal={flightDetail.arrivalTerminal}
+                gate={flightDetail.arrivalGate}
+                timeZoneIana={flightDetail.arrivalTimeZone}
                 motionIndex={1}
               />
             </div>
 
             <FlightWeatherSection
-              departureAirportCode={flight.departureAirportCode}
-              arrivalAirportCode={flight.arrivalAirportCode}
+              departureAirportCode={flightDetail.departureAirportCode}
+              arrivalAirportCode={flightDetail.arrivalAirportCode}
               departureLabel={
-                flight.departureCity ?? flight.departureAirportName ?? undefined
+                flightDetail.departureCity ?? flightDetail.departureAirportName ?? undefined
               }
               arrivalLabel={
-                flight.arrivalCity ?? flight.arrivalAirportName ?? undefined
+                flightDetail.arrivalCity ?? flightDetail.arrivalAirportName ?? undefined
               }
             />
 
             <AircraftInfoCard
-              aircraftType={flight.aircraftType}
-              tailNumber={flight.tailNumber}
-              aircraftAgeYears={flight.aircraftAgeYears}
-              seatCount={flight.seatCount}
-              seatLayout={flight.seatLayout}
-              registrationCountry={flight.registrationCountry}
-              airlineName={flight.airlineName}
+              aircraftType={flightDetail.aircraftType}
+              tailNumber={flightDetail.tailNumber}
+              aircraftAgeYears={flightDetail.aircraftAgeYears}
+              seatCount={flightDetail.seatCount}
+              seatLayout={flightDetail.seatLayout}
+              registrationCountry={flightDetail.registrationCountry}
+              airlineName={flightDetail.airlineName}
               motionIndex={2}
             />
 
             <FlightTimeline events={timelineEvents} />
 
             <FlightDetailNotificationTimeline
-              flightNumber={flight.flightNumber}
-              detail={flight}
+              flightNumber={flightNumber}
+              detail={flightDetail}
             />
 
-            <AircraftTailIntelligence detail={flight} />
+            <AircraftTailIntelligence detail={flightDetail} />
 
             <DelayRiskFactorsSection factors={riskFactors} />
 
             <FlightLiveStatusSection
-              phrase={flight.liveStatusPhrase}
-              lines={flight.liveStatusLines}
+              phrase={flightDetail.liveStatusPhrase}
+              lines={flightDetail.liveStatusLines}
               badges={badges}
             />
 
             <FlightShareSection
-              flightNumber={flight.flightNumber}
+              flightNumber={flightNumber}
               copied={copied}
               onCopyLink={() => void copyLink()}
             />
@@ -303,18 +344,18 @@ export default function FlightDetailClient({ detail, found }: Props) {
               <div className="flex justify-end">
                 <PremiumBadge variant="pro" />
               </div>
-              <DelayRiskCard level={flight.delayRiskLevel ?? "low"} />
+              <DelayRiskCard level={flightDetail.delayRiskLevel ?? "low"} />
             </motion.div>
-            <RelatedFlights next={flight.nextFlight ?? null} />
+            <RelatedFlights next={flightDetail.nextFlight ?? null} />
             <div id="flight-alerts" className="scroll-mt-4">
-              <FlightAlertsCard flightNumber={flight.flightNumber} />
+              <FlightAlertsCard flightNumber={flightNumber} />
             </div>
           </aside>
         </div>
       </div>
 
       <NotificationPrefsModal
-        flightNumber={flight.flightNumber}
+        flightNumber={flightNumber}
         open={prefsOpen}
         onClose={() => setPrefsOpen(false)}
       />

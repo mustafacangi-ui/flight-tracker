@@ -223,7 +223,12 @@ export default function SearchBar({ onSearch }: Props) {
       if (s.type === "airport") {
         router.push(`/airport/${encodeURIComponent(s.code)}`);
       } else {
-        router.push(`/flight/${encodeURIComponent(s.flightNumber)}`);
+        // Normalize flight number: remove spaces, dashes, uppercase
+        const normalizedFlightNumber = s.flightNumber
+          .replace(/\s+/g, '')
+          .replace(/-/g, '')
+          .toUpperCase();
+        router.push(`/flight/${encodeURIComponent(normalizedFlightNumber)}`);
       }
     },
     [router]
@@ -234,7 +239,11 @@ export default function SearchBar({ onSearch }: Props) {
       if (e.key === "Enter" && query.trim()) {
         const q = query.trim().toUpperCase();
         if (isFlightNumberLike(q)) {
-          router.push(`/flight/${encodeURIComponent(q)}`);
+          // Normalize flight number: remove spaces, dashes
+          const normalizedFlightNumber = q
+            .replace(/\s+/g, '')
+            .replace(/-/g, '');
+          router.push(`/flight/${encodeURIComponent(normalizedFlightNumber)}`);
         } else if (q.length >= 2) {
           router.push(`/airport/${encodeURIComponent(q)}`);
         }
