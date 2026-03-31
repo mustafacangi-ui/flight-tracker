@@ -14,13 +14,11 @@ type Props = { onOpenAirport: (a: FavoriteAirport) => void };
 
 const TRENDING: FavoriteAirport[] = [
   { code: "IST", name: "Istanbul Airport", city: "Istanbul" },
-  { code: "SAW", name: "Sabiha Gökçen", city: "Istanbul" },
   { code: "LHR", name: "Heathrow", city: "London" },
   { code: "DXB", name: "Dubai International", city: "Dubai" },
-  { code: "SIN", name: "Singapore Changi", city: "Singapore" },
 ];
 
-const QUICK_AIRPORT_CODES = ["SAW", "IST", "DUS", "CGK"] as const;
+const QUICK_AIRPORT_CODES = ["IST", "FRA", "JFK"] as const;
 
 const listContainer = {
   hidden: {},
@@ -61,85 +59,65 @@ export default function HomeRecentAndTrending({ onOpenAirport }: Props) {
   };
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       <section className="space-y-2">
-        <SectionHeader
-          title="Recent searches"
-          subtitle="Stored in localStorage key recentSearches — quick open:"
-        />
+        <SectionHeader title="Recent searches" />
         <div className="flex flex-wrap gap-2">
           {QUICK_AIRPORT_CODES.map((code) => (
             <motion.button
               key={code}
               type="button"
-              whileHover={{ scale: 1.04, y: -1 }}
+              whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.98 }}
               transition={{ type: "spring", stiffness: 450, damping: 22 }}
               onClick={() => openCode(code)}
-              className="rounded-2xl border border-white/15 bg-white/[0.06] px-3 py-2 font-mono text-sm font-semibold text-amber-200/90 shadow-[0_8px_24px_rgba(0,0,0,0.25)] transition-colors hover:border-amber-400/45 hover:bg-white/[0.1] hover:shadow-[0_12px_32px_rgba(245,158,11,0.12)]"
+              className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-xs font-medium text-amber-200/80 transition hover:border-amber-400/40 hover:bg-white/[0.08]"
+            >
+              {code}
+            </motion.button>
+          ))}
+          {recent.map((code) => (
+            <motion.button
+              key={code}
+              type="button"
+              variants={listItem}
+              initial="hidden"
+              animate="show"
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 450, damping: 22 }}
+              onClick={() => openCode(code)}
+              className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-xs font-medium text-gray-300 transition hover:border-blue-400/35 hover:bg-white/[0.08]"
             >
               {code}
             </motion.button>
           ))}
         </div>
-        {recent.length === 0 ? (
-          <p className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-gray-500">
-            Search an airport to build your history — codes like SAW, IST, DUS,
-            CGK will appear here as buttons.
-          </p>
-        ) : (
-          <motion.div
-            className="flex flex-wrap gap-2"
-            variants={listContainer}
-            initial="hidden"
-            animate="show"
-          >
-            {recent.map((code) => (
-              <motion.button
-                key={code}
-                type="button"
-                variants={listItem}
-                whileHover={{ scale: 1.04, y: -1 }}
-                whileTap={{ scale: 0.98 }}
-                transition={{ type: "spring", stiffness: 450, damping: 22 }}
-                onClick={() => openCode(code)}
-                className="rounded-2xl border border-white/15 bg-white/[0.06] px-3 py-2 font-mono text-sm font-semibold text-amber-200/90 shadow-[0_6px_20px_rgba(0,0,0,0.2)] transition-colors hover:border-blue-400/35 hover:bg-white/[0.1]"
-              >
-                {code}
-              </motion.button>
-            ))}
-          </motion.div>
-        )}
       </section>
 
       <section className="space-y-2">
         <SectionHeader title="Trending airports" />
-        <motion.ul
-          className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_10px_36px_rgba(0,0,0,0.25)]"
-          variants={listContainer}
-          initial="hidden"
-          animate="show"
-        >
+        <div className="flex flex-wrap gap-2">
           {TRENDING.map((a) => (
-            <motion.li key={a.code} variants={listItem}>
-              <motion.button
-                type="button"
-                whileHover={{
-                  scale: 1.01,
-                  backgroundColor: "rgba(255,255,255,0.06)",
-                }}
-                transition={{ type: "spring", stiffness: 400, damping: 28 }}
-                onClick={() => onOpenAirport(a)}
-                className="flex w-full items-center justify-between gap-2 rounded-xl px-2 py-2.5 text-left text-sm text-gray-200"
-              >
-                <span>{a.name}</span>
-                <span className="font-mono text-xs text-amber-200/80">
-                  {a.code}
-                </span>
-              </motion.button>
-            </motion.li>
+            <motion.button
+              key={a.code}
+              type="button"
+              variants={listItem}
+              initial="hidden"
+              animate="show"
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 400, damping: 28 }}
+              onClick={() => onOpenAirport(a)}
+              className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-gray-200 transition hover:bg-white/[0.08]"
+            >
+              <span>{a.name}</span>
+              <span className="font-mono text-[10px] text-amber-200/70">
+                {a.code}
+              </span>
+            </motion.button>
           ))}
-        </motion.ul>
+        </div>
       </section>
     </div>
   );

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import EmptyState from "./EmptyState";
 import FavoriteAirportPills from "./FavoriteAirportPills";
 import RecentFlightsSection from "./RecentFlightsSection";
 import SectionHeader from "./SectionHeader";
@@ -43,24 +42,24 @@ export default function HomeQuickWidgets({ onOpenAirport }: Props) {
         onSelect={onOpenAirport}
       />
 
-      <section id="quick-access" className="scroll-mt-4 space-y-2">
+      <section id="quick-access" className="scroll-mt-4 space-y-1.5">
         <SectionHeader
           title="Saved flights"
           action={
-            <Link
-              href="/saved"
-              className="text-xs font-medium text-blue-400 hover:text-blue-300"
-            >
-              See all
-            </Link>
+            savedFlights.length > 0 ? (
+              <Link
+                href="/saved"
+                className="text-xs font-medium text-blue-400 hover:text-blue-300"
+              >
+                See all
+              </Link>
+            ) : null
           }
         />
         {savedFlights.length === 0 ? (
-          <EmptyState
-            title="No saved flights yet"
-            description="Tap the bookmark on a flight card to save it for quick access."
-            className="py-6"
-          />
+          <p className="text-xs text-gray-500">
+            No saved flights yet. Save flights to quickly track delays, gates and boarding.
+          </p>
         ) : (
           <div className="-mx-1 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
             {savedFlights.slice(0, 8).map((f) => (
@@ -86,30 +85,18 @@ export default function HomeQuickWidgets({ onOpenAirport }: Props) {
         <RecentFlightsSection embed />
       </section>
 
-      <section className="space-y-2">
-        <SectionHeader
-          title="Alerts"
-          action={
-            <Link
-              href="/alerts"
-              className="text-xs font-medium text-blue-400 hover:text-blue-300"
-            >
-              See all
-            </Link>
-          }
-        />
+      <section className="space-y-1.5">
+        <SectionHeader title="Alerts" />
         {alertPreview.length === 0 ? (
-          <EmptyState
-            title="No alerts yet"
-            description="Turn on tracking on a flight to build your alert timeline."
-            className="py-5"
-          />
+          <p className="text-xs text-gray-500">
+            No alerts yet. Turn on tracking on a flight to build your alert timeline.
+          </p>
         ) : (
-          <ul className="space-y-2 rounded-2xl border border-white/5 bg-white/[0.02] p-3">
+          <ul className="space-y-1.5 rounded-xl border border-white/5 bg-white/[0.02] p-2">
             {alertPreview.map((a) => (
               <li
                 key={a.id}
-                className="border-b border-white/5 pb-2 text-xs last:border-0 last:pb-0"
+                className="border-b border-white/5 pb-1.5 text-xs last:border-0 last:pb-0"
               >
                 <span className="font-mono text-amber-200/90">
                   {a.flightNumber}

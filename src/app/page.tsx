@@ -4,7 +4,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AirportFavoriteStar from "../components/AirportFavoriteStar";
-import AirportSearch from "../components/AirportSearch";
 import FlightBoard from "../components/FlightBoard";
 import FlightList from "../components/FlightList";
 import HomeAirportInsights from "../components/HomeAirportInsights";
@@ -12,7 +11,6 @@ import HomeQuickWidgets from "../components/HomeQuickWidgets";
 import HomeRecentAndTrending from "../components/HomeRecentAndTrending";
 import InstallAppCard from "../components/InstallAppCard";
 import AppStoreComingSoonCard from "../components/mobile/AppStoreComingSoonCard";
-import AppStorePreviewGallery from "../components/mobile/AppStorePreviewGallery";
 import SearchBar from "../components/SearchBar";
 import {
   AirportHeaderSkeleton,
@@ -514,8 +512,8 @@ export default function Home() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-gray-950 text-white">
       <HomeTopAuthBar />
-      <div className="mx-auto flex w-full max-w-[600px] min-w-0 flex-col justify-center px-3 py-6 sm:px-6 sm:py-10">
-        <main className="flex w-full min-w-0 flex-col gap-6 md:gap-8">
+      <div className="mx-auto flex w-full max-w-[600px] min-w-0 flex-col justify-center px-3 py-4 sm:px-6 sm:py-6">
+        <main className="flex w-full min-w-0 flex-col gap-4 md:gap-5">
           <motion.div
             id="mobile-search"
             className="scroll-mt-4 space-y-3 md:space-y-4"
@@ -534,12 +532,10 @@ export default function Home() {
 
             <SearchBar onSearch={handleSearch} />
 
-            <AirportSearch onSelectAirport={handleAirportSelect} />
-
-            <p className="text-center">
+            <p className="text-center text-xs text-gray-500">
               <Link
                 href="/roadmap"
-                className="text-xs text-gray-500 underline-offset-2 transition hover:text-gray-300 hover:underline"
+                className="underline-offset-2 transition hover:text-gray-300 hover:underline"
               >
                 Roadmap, Pro & feedback
               </Link>
@@ -558,8 +554,6 @@ export default function Home() {
           <InstallAppCard />
 
           <AppStoreComingSoonCard />
-
-          <AppStorePreviewGallery />
 
           <HomeGroupedFlightUpdates />
 

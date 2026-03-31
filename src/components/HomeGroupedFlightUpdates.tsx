@@ -19,7 +19,7 @@ export default function HomeGroupedFlightUpdates() {
   const [cards, setCards] = useState<AlertTimelineItem[]>([]);
 
   const refresh = useCallback(() => {
-    setCards(loadAlertTimeline().filter(isGroupedCard).slice(0, 4));
+    setCards(loadAlertTimeline().filter(isGroupedCard).slice(0, 2));
   }, []);
 
   useEffect(() => {
@@ -32,49 +32,34 @@ export default function HomeGroupedFlightUpdates() {
   if (cards.length === 0) return null;
 
   return (
-    <section className="space-y-2">
-      <SectionHeader
-        title="Flight updates"
-        action={
-          <Link
-            href="/alerts"
-            className="text-xs font-medium text-blue-400 hover:text-blue-300"
-          >
-            Timeline
-          </Link>
-        }
-      />
-      <ul className="space-y-3">
+    <section className="space-y-1.5">
+      <SectionHeader title="Flight updates" />
+      <ul className="space-y-2">
         {cards.map((a) => {
           const lines =
             a.detailLines && a.detailLines.length > 0
               ? a.detailLines
               : [a.text];
-          const title =
-            a.title ?? `${a.flightNumber} updates`;
+          const title = a.title ?? `${a.flightNumber} updates`;
           return (
             <li
               key={a.id}
-              className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"
+              className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3"
             >
-              <div className="flex items-start justify-between gap-2">
-                <p className="font-mono text-sm font-bold text-amber-200/90">
+              <div className="min-w-0 flex-1">
+                <p className="font-mono text-xs font-bold text-amber-200/90">
                   {title}
                 </p>
-                <Link
-                  href={`/flight/${encodeURIComponent(a.flightNumber)}`}
-                  className="shrink-0 text-xs font-medium text-blue-400 hover:text-blue-300"
-                >
-                  Open
-                </Link>
+                <p className="mt-0.5 text-xs text-gray-400 line-clamp-2">
+                  {lines[0]}
+                </p>
               </div>
-              <ul className="mt-3 space-y-1.5 border-l border-white/10 pl-3 text-sm text-gray-300">
-                {lines.slice(0, 6).map((line, i) => (
-                  <li key={i} className="leading-snug">
-                    {line}
-                  </li>
-                ))}
-              </ul>
+              <Link
+                href={`/flight/${encodeURIComponent(a.flightNumber)}`}
+                className="shrink-0 text-[11px] font-medium text-blue-400 hover:text-blue-300"
+              >
+                Open
+              </Link>
             </li>
           );
         })}
