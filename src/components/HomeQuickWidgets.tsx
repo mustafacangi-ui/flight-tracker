@@ -13,6 +13,7 @@ import {
 } from "../lib/alertHistoryStorage";
 import type { FavoriteAirport } from "../lib/quickAccessStorage";
 import { savedFlightRouteLabel } from "../lib/quickAccessStorage";
+import { savedFlightIdentityKey } from "../lib/savedFlightIdentity";
 import { useQuickAccess } from "../hooks/useQuickAccess";
 
 type Props = {
@@ -64,7 +65,7 @@ export default function HomeQuickWidgets({ onOpenAirport }: Props) {
           <div className="-mx-1 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
             {savedFlights.slice(0, 8).map((f) => (
               <Link
-                key={f.flightNumber}
+                key={f.serverId ?? savedFlightIdentityKey(f)}
                 href={`/flight/${encodeURIComponent(f.flightNumber)}`}
                 className="shrink-0 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 backdrop-blur-sm transition hover:border-white/20"
               >

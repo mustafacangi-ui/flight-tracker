@@ -7,6 +7,7 @@ import {
   loadSavedFlights,
   QUICK_ACCESS_UPDATED_EVENT,
   removeSavedFlight,
+  removeSavedFlightByIdentity,
   toggleSavedFlight,
   upsertSavedFlight,
 } from "../lib/quickAccessStorage";
@@ -35,8 +36,12 @@ export function useSavedFlights() {
     setSavedFlights(upsertSavedFlight(flight));
   }, []);
 
-  const remove = useCallback((flightNumber: string) => {
-    setSavedFlights(removeSavedFlight(flightNumber));
+  const remove = useCallback((target: SavedFlight | string) => {
+    if (typeof target === "string") {
+      setSavedFlights(removeSavedFlight(target));
+    } else {
+      setSavedFlights(removeSavedFlightByIdentity(target));
+    }
   }, []);
 
   const toggle = useCallback((flight: SavedFlight) => {

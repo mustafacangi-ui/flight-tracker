@@ -9,12 +9,16 @@ import FlightCardLiveRow from "../FlightCardLiveRow";
 import FlightNotificationToggle from "../FlightNotificationToggle";
 import { useQuickAccess } from "../../hooks/useQuickAccess";
 import { usePremiumFlag } from "../../hooks/usePremiumFlag";
+import { showAppToast } from "../../lib/appToast";
+import { savedFlightTrackContext } from "../../lib/flightCardLink";
 import { FREE_TIER } from "../../lib/premiumTier";
 import type { SavedFlight } from "../../lib/quickAccessStorage";
+import { removeSavedFlightByIdentity } from "../../lib/quickAccessStorage";
+import { savedFlightIdentityKey } from "../../lib/savedFlightIdentity";
 import {
-  removeSavedFlight,
-} from "../../lib/quickAccessStorage";
-import { savedFlightTrackContext } from "../../lib/flightCardLink";
+  createBrowserSupabaseClient,
+  isSupabaseConfigured,
+} from "../../lib/supabase/client";
 import { useUpgradeModal } from "../UpgradeModalProvider";
 
 type FilterId = "all" | "upcoming" | "past" | "delayed" | "family";
@@ -398,13 +402,39 @@ export default function SavedFlightsDashboard() {
       ) : (
         <ul className="flex flex-col gap-4">
           {filtered.map((f) => (
-            <li key={f.flightNumber}>
+            <li key={f.serverId ?? savedFlightIdentityKey(f)}>
               <SavedFlightCard
                 f={f}
                 shareUrl={`${shareBase}/share/${encodeURIComponent(f.flightNumber)}`}
                 onRemove={() => {
-                  removeSavedFlight(f.flightNumber);
-                  refresh();
+                  void (async () => {
+                    if (!window.confirm("Remove this flight from saved?")) return;
+                    const supabase =
+                      isSupabaseConfigured() ? createBrowserSupabaseClient() : null;
+                    const {
+                      data: { user },
+                    } = (await supabase?.auth.getUser()) ?? { data: { user: null } };
+                    if (user && f.serverId) {
+                      const res = await fetch(
+                        `/api/saved-flights?id=${encodeURIComponent(f.serverId)}`,
+                        { method: "DELETE", credentials: "same-origin" }
+                      );
+                      if (!res.ok) {
+                        showAppToast({
+                          message: "Could not remove saved flight",
+                          variant: "error",
+                        });
+                        return;
+                      }
+                      console.log("[saved-flights] delete success (dashboard)");
+                    }
+                    removeSavedFlightByIdentity(f);
+                    refresh();
+                    showAppToast({
+                      message: "Removed from saved flights",
+                      variant: "success",
+                    });
+                  })();
                 }}
               />
             </li>

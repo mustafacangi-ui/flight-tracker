@@ -2,6 +2,10 @@
  * Client-side favorite airports and saved flights (localStorage).
  */
 
+import {
+  savedFlightIdentityKey,
+  savedFlightToDepartureTimestamptzMs,
+} from "./savedFlightIdentity";
 import { removePrefsForFlight } from "./savedFlightNotifyPrefs";
 
 export type FavoriteAirport = {
@@ -20,6 +24,10 @@ export type SavedFlight = {
   status: string;
   searchedAirportCode: string;
   timestamp: number;
+  /** Matches DB `departure_time` / unique constraint; stable across formatted labels. */
+  departureTimeKeyMs?: number;
+  /** Supabase `saved_flights.id` when synced. */
+  serverId?: string;
   /** Arrival wall time when known (e.g. from board/detail). */
   arrivalTime?: string;
   /** Saved from family share flow or explicitly tagged. */
@@ -84,7 +92,7 @@ function migrateLegacySaved(o: Record<string, unknown>): SavedFlight | null {
   const arrivalTime =
     typeof o.arrivalTime === "string" ? o.arrivalTime.trim() : undefined;
   const familyShared = o.familyShared === true;
-  return {
+  const out: SavedFlight = {
     flightNumber,
     departureAirport,
     arrivalAirport,
@@ -93,9 +101,16 @@ function migrateLegacySaved(o: Record<string, unknown>): SavedFlight | null {
     status,
     searchedAirportCode,
     timestamp,
-    ...(arrivalTime ? { arrivalTime } : {}),
-    ...(familyShared ? { familyShared: true } : {}),
   };
+  if (arrivalTime) out.arrivalTime = arrivalTime;
+  if (familyShared) out.familyShared = true;
+  if (typeof o.departureTimeKeyMs === "number" && Number.isFinite(o.departureTimeKeyMs)) {
+    out.departureTimeKeyMs = o.departureTimeKeyMs;
+  }
+  if (typeof o.serverId === "string" && o.serverId.trim()) {
+    out.serverId = o.serverId.trim();
+  }
+  return out;
 }
 
 function parseSavedFlightOne(x: unknown): SavedFlight | null {
@@ -115,7 +130,7 @@ function parseSavedFlightOne(x: unknown): SavedFlight | null {
         ? o.arrivalTime.trim()
         : undefined;
     const familyShared = o.familyShared === true;
-    return {
+    const row: SavedFlight = {
       flightNumber,
       departureAirport: String(o.departureAirport).trim() || "—",
       arrivalAirport: String(o.arrivalAirport).trim() || "—",
@@ -124,9 +139,16 @@ function parseSavedFlightOne(x: unknown): SavedFlight | null {
       status: String(o.status ?? "Scheduled").trim() || "Scheduled",
       searchedAirportCode: String(o.searchedAirportCode).trim() || "—",
       timestamp: o.timestamp,
-      ...(arrivalTime ? { arrivalTime } : {}),
-      ...(familyShared ? { familyShared: true } : {}),
     };
+    if (arrivalTime) row.arrivalTime = arrivalTime;
+    if (familyShared) row.familyShared = true;
+    if (typeof o.departureTimeKeyMs === "number" && Number.isFinite(o.departureTimeKeyMs)) {
+      row.departureTimeKeyMs = o.departureTimeKeyMs;
+    }
+    if (typeof o.serverId === "string" && o.serverId.trim()) {
+      row.serverId = o.serverId.trim();
+    }
+    return row;
   }
 
   return migrateLegacySaved(o);
@@ -177,22 +199,33 @@ export function loadSavedFlights(): SavedFlight[] {
   return parseSavedFlights(localStorage.getItem(SAVED_FLIGHTS_KEY));
 }
 
+function cloneSavedFlightForStorage(f: SavedFlight): SavedFlight {
+  const row: SavedFlight = {
+    flightNumber: f.flightNumber.trim(),
+    departureAirport: f.departureAirport.trim() || "—",
+    arrivalAirport: f.arrivalAirport.trim() || "—",
+    airline: f.airline.trim() || "—",
+    scheduledTime: f.scheduledTime.trim() || "—",
+    status: f.status.trim() || "Scheduled",
+    searchedAirportCode: f.searchedAirportCode.trim() || "—",
+    timestamp: f.timestamp,
+  };
+  if (typeof f.departureTimeKeyMs === "number" && Number.isFinite(f.departureTimeKeyMs)) {
+    row.departureTimeKeyMs = f.departureTimeKeyMs;
+  }
+  if (f.serverId?.trim()) row.serverId = f.serverId.trim();
+  if (f.arrivalTime?.trim()) row.arrivalTime = f.arrivalTime.trim();
+  if (f.familyShared) row.familyShared = true;
+  return row;
+}
+
 export function saveSavedFlights(list: SavedFlight[]): void {
   if (typeof window === "undefined") return;
   const dedup = new Map<string, SavedFlight>();
   for (const f of list) {
-    const flightNumber = f.flightNumber.trim();
-    if (!flightNumber) continue;
-    dedup.set(flightNumber.toUpperCase(), {
-      flightNumber,
-      departureAirport: f.departureAirport.trim() || "—",
-      arrivalAirport: f.arrivalAirport.trim() || "—",
-      airline: f.airline.trim() || "—",
-      scheduledTime: f.scheduledTime.trim() || "—",
-      status: f.status.trim() || "Scheduled",
-      searchedAirportCode: f.searchedAirportCode.trim() || "—",
-      timestamp: f.timestamp,
-    });
+    if (!f.flightNumber.trim()) continue;
+    const key = savedFlightIdentityKey(f);
+    dedup.set(key, cloneSavedFlightForStorage(f));
   }
   localStorage.setItem(
     SAVED_FLIGHTS_KEY,
@@ -269,16 +302,25 @@ export function isFlightSaved(
   return arr.some((f) => f.flightNumber.trim().toUpperCase() === n);
 }
 
+/** Same flight + departure slot as rows already saved (uses `departureTimeKeyMs` when set). */
+export function isSavedFlightInList(f: SavedFlight, list?: SavedFlight[]): boolean {
+  const key = savedFlightIdentityKey(f);
+  const arr = list ?? loadSavedFlights();
+  return arr.some((x) => savedFlightIdentityKey(x) === key);
+}
+
 export function upsertSavedFlight(
   flight: SavedFlight,
   list?: SavedFlight[]
 ): SavedFlight[] {
   const n = flight.flightNumber.trim();
   const current = list ?? loadSavedFlights();
-  const upper = n.toUpperCase();
-  const filtered = current.filter(
-    (f) => f.flightNumber.trim().toUpperCase() !== upper
-  );
+  const idKey = savedFlightIdentityKey(flight);
+  const filtered = current.filter((f) => savedFlightIdentityKey(f) !== idKey);
+  const depKey =
+    typeof flight.departureTimeKeyMs === "number" && Number.isFinite(flight.departureTimeKeyMs)
+      ? flight.departureTimeKeyMs
+      : savedFlightToDepartureTimestamptzMs(flight);
   const row: SavedFlight = {
     flightNumber: n,
     departureAirport: flight.departureAirport.trim() || "—",
@@ -288,10 +330,12 @@ export function upsertSavedFlight(
     status: flight.status.trim() || "Scheduled",
     searchedAirportCode: flight.searchedAirportCode.trim() || "—",
     timestamp: flight.timestamp,
+    departureTimeKeyMs: depKey,
   };
   const at = flight.arrivalTime?.trim();
   if (at) row.arrivalTime = at;
   if (flight.familyShared) row.familyShared = true;
+  if (flight.serverId?.trim()) row.serverId = flight.serverId.trim();
   const next = [...filtered, row];
   saveSavedFlights(next);
   return next;
@@ -311,15 +355,27 @@ export function removeSavedFlight(
   return next;
 }
 
+export function removeSavedFlightByIdentity(
+  flight: SavedFlight,
+  list?: SavedFlight[]
+): SavedFlight[] {
+  const idKey = savedFlightIdentityKey(flight);
+  const current = list ?? loadSavedFlights();
+  const next = current.filter((f) => savedFlightIdentityKey(f) !== idKey);
+  saveSavedFlights(next);
+  removePrefsForFlight(flight.flightNumber);
+  return next;
+}
+
 export function toggleSavedFlight(
   flight: SavedFlight,
   list?: SavedFlight[]
 ): { saved: boolean; list: SavedFlight[] } {
   const current = list ?? loadSavedFlights();
-  if (isFlightSaved(flight.flightNumber, current)) {
+  if (isSavedFlightInList(flight, current)) {
     return {
       saved: false,
-      list: removeSavedFlight(flight.flightNumber, current),
+      list: removeSavedFlightByIdentity(flight, current),
     };
   }
   return { saved: true, list: upsertSavedFlight(flight, current) };

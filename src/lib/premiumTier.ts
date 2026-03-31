@@ -1,6 +1,7 @@
 /**
  * Free vs Premium. Entitlement comes only from `user_plans` (Stripe-linked, active/trialing),
- * resolved by PremiumEntitlementProvider and exposed via getPremiumEntitlement() / usePremiumFlag.
+ * resolved by PremiumEntitlementProvider (PremiumEntitlementContext) and mirrored into
+ * getPremiumEntitlement() / usePremiumFlag().
  */
 
 import { getPremiumEntitlement } from "./premiumEntitlementRegistry";

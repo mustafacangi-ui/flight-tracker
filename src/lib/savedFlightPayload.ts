@@ -4,6 +4,10 @@ import {
   type DisplayFlight,
 } from "./formatFlights";
 import type { SavedFlight } from "./quickAccessStorage";
+import {
+  savedFlightToDepartureTimestamptzMs,
+  utcDayStartMs,
+} from "./savedFlightIdentity";
 
 export function savedFlightPayloadFromDisplay(
   f: DisplayFlight,
@@ -28,6 +32,12 @@ export function savedFlightPayloadFromDisplay(
     f.scheduledArrivalLocal?.trim() ||
     "";
 
+  const timestamp = utcDayStartMs(Date.now());
+  const departureTimeKeyMs = savedFlightToDepartureTimestamptzMs({
+    scheduledTime,
+    timestamp,
+  });
+
   return {
     flightNumber: f.number,
     departureAirport: dep,
@@ -36,7 +46,8 @@ export function savedFlightPayloadFromDisplay(
     scheduledTime,
     status: f.statusLabel || "Scheduled",
     searchedAirportCode: code,
-    timestamp: Date.now(),
+    timestamp,
+    departureTimeKeyMs,
     ...(arrWall ? { arrivalTime: arrWall } : {}),
   };
 }
@@ -56,6 +67,14 @@ export function savedFlightPayloadFromDetail(d: FlightDetail): SavedFlight {
     d.estimatedArrivalTime?.trim() ||
     d.arrivalTime?.trim() ||
     "";
+  const parsedDep = Date.parse(time);
+  const timestamp = Number.isNaN(parsedDep)
+    ? utcDayStartMs(Date.now())
+    : utcDayStartMs(parsedDep);
+  const departureTimeKeyMs = savedFlightToDepartureTimestamptzMs({
+    scheduledTime: time,
+    timestamp,
+  });
   return {
     flightNumber: d.flightNumber,
     departureAirport: depName,
@@ -64,7 +83,8 @@ export function savedFlightPayloadFromDetail(d: FlightDetail): SavedFlight {
     scheduledTime: time,
     status: d.status?.trim() || "Scheduled",
     searchedAirportCode: dep,
-    timestamp: Date.now(),
+    timestamp,
+    departureTimeKeyMs,
     ...(arrTime ? { arrivalTime: arrTime } : {}),
   };
 }

@@ -1,19 +1,31 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
+import { useState } from "react";
+
 import { useSavedFlights } from "../hooks/useSavedFlights";
+import { usePremiumFlag } from "../hooks/usePremiumFlag";
 import { useUpgradeModal } from "./UpgradeModalProvider";
 import {
   AnalyticsEvents,
   trackProductEvent,
 } from "../lib/analytics/telemetry";
+import { showAppToast } from "../lib/appToast";
 import { trackEvent } from "../lib/localAnalytics";
 import { dispatchFlightSavedEvent } from "../lib/pushEvents";
 import { canAddSavedFlight } from "../lib/premiumTier";
+import { savedFlightIdentityKey } from "../lib/savedFlightIdentity";
 import {
-  isFlightSaved,
+  isSavedFlightInList,
+  removeSavedFlightByIdentity,
+  toggleSavedFlight,
+  upsertSavedFlight,
   type SavedFlight,
 } from "../lib/quickAccessStorage";
+import {
+  createBrowserSupabaseClient,
+  isSupabaseConfigured,
+} from "../lib/supabase/client";
 
 type Props = {
   payload: SavedFlight;
@@ -40,39 +52,143 @@ function BookmarkIcon({ filled }: { filled: boolean }) {
 }
 
 export default function FlightSaveBookmark({ payload, className = "" }: Props) {
-  const { savedFlights, toggle } = useSavedFlights();
+  const { savedFlights, refresh } = useSavedFlights();
   const { openUpgrade } = useUpgradeModal();
-  const saved = isFlightSaved(payload.flightNumber, savedFlights);
+  const premium = usePremiumFlag();
+  const [busy, setBusy] = useState(false);
+  const saved = isSavedFlightInList(payload, savedFlights);
 
   return (
     <button
       type="button"
-      className={`inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1.5 text-[11px] font-medium text-gray-200 backdrop-blur-sm transition duration-200 hover:border-white/18 hover:bg-white/[0.1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/45 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950 active:scale-[0.97] md:px-2.5 md:text-xs ${className}`}
+      disabled={busy}
+      className={`inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1.5 text-[11px] font-medium text-gray-200 backdrop-blur-sm transition duration-200 hover:border-white/18 hover:bg-white/[0.1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/45 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950 active:scale-[0.97] md:px-2.5 md:text-xs disabled:opacity-60 ${className}`}
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (
-          !saved &&
-          !canAddSavedFlight(savedFlights.length, false)
-        ) {
-          openUpgrade({ blockedFeature: "save_flight" });
-          return;
-        }
-        const { saved: nowSaved } = toggle({
-          ...payload,
-          timestamp: Date.now(),
-        });
-        if (nowSaved) {
-          trackProductEvent(AnalyticsEvents.flight_saved, {
-            flight_number: payload.flightNumber,
-          });
-          trackEvent("save_flight", { flightNumber: payload.flightNumber });
-          dispatchFlightSavedEvent();
-        } else {
-          trackProductEvent(AnalyticsEvents.flight_unsaved, {
-            flight_number: payload.flightNumber,
-          });
-        }
+        void (async () => {
+          if (busy) return;
+
+          const supabase =
+            isSupabaseConfigured() ? createBrowserSupabaseClient() : null;
+          const {
+            data: { user },
+          } = (await supabase?.auth.getUser()) ?? { data: { user: null } };
+
+          const atLimit =
+            !saved &&
+            !premium &&
+            !canAddSavedFlight(savedFlights.length, false);
+
+          if (atLimit) {
+            openUpgrade({ blockedFeature: "saved_flights_limit" });
+            return;
+          }
+
+          if (user) {
+            setBusy(true);
+            try {
+              if (saved) {
+                const match = savedFlights.find(
+                  (x) =>
+                    savedFlightIdentityKey(x) === savedFlightIdentityKey(payload)
+                );
+                if (match?.serverId) {
+                  const res = await fetch(
+                    `/api/saved-flights?id=${encodeURIComponent(match.serverId)}`,
+                    { method: "DELETE", credentials: "same-origin" }
+                  );
+                  if (!res.ok) {
+                    showAppToast({
+                      message: "Could not remove saved flight",
+                      variant: "error",
+                    });
+                    return;
+                  }
+                  console.log("[saved-flights] delete success (bookmark)");
+                }
+                removeSavedFlightByIdentity(match ?? payload);
+                refresh();
+                showAppToast({
+                  message: "Removed from saved flights",
+                  variant: "success",
+                });
+                trackProductEvent(AnalyticsEvents.flight_unsaved, {
+                  flight_number: payload.flightNumber,
+                });
+              } else {
+                const res = await fetch("/api/saved-flights", {
+                  method: "POST",
+                  credentials: "same-origin",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(payload),
+                });
+                if (res.status === 409) {
+                  console.log("[saved-flights] duplicate prevented (bookmark)");
+                  showAppToast({
+                    message: "This flight is already in your saved list",
+                    variant: "warning",
+                  });
+                  return;
+                }
+                if (res.status === 403) {
+                  const j = (await res.json()) as { code?: string };
+                  if (j.code === "FREE_LIMIT") {
+                    console.log("[saved-flights] free limit reached (bookmark)");
+                    openUpgrade({ blockedFeature: "saved_flights_limit" });
+                    return;
+                  }
+                  showAppToast({
+                    message: "Could not save flight",
+                    variant: "error",
+                  });
+                  return;
+                }
+                if (!res.ok) {
+                  showAppToast({
+                    message: "Could not save flight",
+                    variant: "error",
+                  });
+                  return;
+                }
+                const body = (await res.json()) as { flight?: SavedFlight };
+                if (body.flight) {
+                  upsertSavedFlight(body.flight);
+                  refresh();
+                }
+                console.log("[saved-flights] insert success (bookmark)");
+                showAppToast({ message: "Flight saved", variant: "success" });
+                trackProductEvent(AnalyticsEvents.flight_saved, {
+                  flight_number: payload.flightNumber,
+                });
+                trackEvent("save_flight", { flightNumber: payload.flightNumber });
+                dispatchFlightSavedEvent();
+              }
+            } finally {
+              setBusy(false);
+            }
+            return;
+          }
+
+          const { saved: nowSaved } = toggleSavedFlight(payload);
+          refresh();
+          if (nowSaved) {
+            trackProductEvent(AnalyticsEvents.flight_saved, {
+              flight_number: payload.flightNumber,
+            });
+            trackEvent("save_flight", { flightNumber: payload.flightNumber });
+            dispatchFlightSavedEvent();
+            showAppToast({ message: "Flight saved", variant: "success" });
+          } else {
+            trackProductEvent(AnalyticsEvents.flight_unsaved, {
+              flight_number: payload.flightNumber,
+            });
+            showAppToast({
+              message: "Removed from saved flights",
+              variant: "success",
+            });
+          }
+        })();
       }}
       aria-pressed={saved}
       aria-label={saved ? "Saved — tap to remove" : "Save flight"}

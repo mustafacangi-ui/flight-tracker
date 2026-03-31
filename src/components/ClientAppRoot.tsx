@@ -15,7 +15,9 @@ import ServiceWorkerRegister from "./ServiceWorkerRegister";
 import StoreOnboardingGate from "./onboarding/StoreOnboardingGate";
 import RouteWingsOnboarding from "./RouteWingsOnboarding";
 import PushPromotionHost from "./PushPromotionHost";
+import AppToastHost from "./AppToastHost";
 import PremiumEntitlementProvider from "./PremiumEntitlementProvider";
+import SavedFlightsCloudSync from "./SavedFlightsCloudSync";
 import SupabaseAuthListener from "./SupabaseAuthListener";
 import { UpgradeModalProvider } from "./UpgradeModalProvider";
 
@@ -35,6 +37,8 @@ export default function ClientAppRoot({ children }: Props) {
               <MonitoringContextSync />
               <StoreOnboardingGate />
               <SupabaseAuthListener />
+              <SavedFlightsCloudSync />
+              <AppToastHost />
               <Suspense fallback={null}>
                 <OAuthReturnHandler />
               </Suspense>
