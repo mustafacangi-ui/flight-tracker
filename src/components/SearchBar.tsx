@@ -7,6 +7,8 @@ import type {
   AirportsApiResponse,
   SimplifiedAirport,
 } from "../lib/airportSearchTypes";
+import type { SavedFlight } from "../lib/quickAccessStorage";
+import { loadSavedFlights } from "../lib/quickAccessStorage";
 
 const DEBOUNCE_MS = 200;
 const MIN_QUERY_LENGTH = 2;
@@ -24,7 +26,11 @@ type FlightSuggestion = {
   airline: string;
   departureAirport: string;
   arrivalAirport: string;
+  departureCity?: string;
   arrivalCity?: string;
+  status: string;
+  departureTime?: string;
+  source: "saved" | "live";
 };
 
 type Suggestion = AirportSuggestion | FlightSuggestion;
@@ -32,6 +38,10 @@ type Suggestion = AirportSuggestion | FlightSuggestion;
 type Props = {
   onSearch?: (value: string) => void;
 };
+
+function normalizeFlightNumber(input: string): string {
+  return input.trim().toUpperCase().replace(/\s+/g, "");
+}
 
 function isFlightNumberLike(query: string): boolean {
   return /^[A-Z]{2,3}\d{1,4}$/i.test(query.trim());
@@ -43,6 +53,30 @@ function isLikelyFlightSearch(query: string): boolean {
   if (q.length <= 3 && /^[A-Z]+$/.test(q)) return false;
   if (q.length > 3 && /\d/.test(q)) return true;
   return false;
+}
+
+function formatTime(timeStr: string | undefined): string {
+  if (!timeStr) return "";
+  try {
+    const date = new Date(timeStr);
+    return date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  } catch {
+    return "";
+  }
+}
+
+function getStatusBadgeClass(status: string): string {
+  const s = status.toLowerCase();
+  if (s.includes("delay")) return "bg-amber-500/20 text-amber-300";
+  if (s.includes("cancel")) return "bg-red-500/20 text-red-300";
+  if (s.includes("board") || s.includes("gate")) return "bg-blue-500/20 text-blue-300";
+  if (s.includes("depart") || s.includes("airborne")) return "bg-emerald-500/20 text-emerald-300";
+  if (s.includes("land") || s.includes("arriv")) return "bg-emerald-500/20 text-emerald-300";
+  return "bg-slate-500/20 text-slate-300";
 }
 
 export default function SearchBar({ onSearch }: Props) {
@@ -75,31 +109,68 @@ export default function SearchBar({ onSearch }: Props) {
     try {
       const results: Suggestion[] = [];
       const isFlightSearch = isLikelyFlightSearch(q);
+      const normalizedQuery = normalizeFlightNumber(q);
 
-      if (!isFlightSearch || q.length <= 4) {
-        const airportRes = await fetch(`/api/airports?query=${encodeURIComponent(q)}`);
-        if (airportRes.ok) {
-          const airportData = (await airportRes.json()) as AirportsApiResponse;
-          const airportSuggestions: AirportSuggestion[] = (airportData.airports ?? [])
-            .slice(0, 4)
-            .map((a) => ({
-              type: "airport",
-              code: a.code,
-              name: a.name,
-              city: a.city,
-            }));
-          results.push(...airportSuggestions);
-        }
+      // Always search for airports
+      const airportRes = await fetch(`/api/airports?query=${encodeURIComponent(q)}`);
+      if (airportRes.ok) {
+        const airportData = (await airportRes.json()) as AirportsApiResponse;
+        const airportSuggestions: AirportSuggestion[] = (airportData.airports ?? [])
+          .slice(0, 4)
+          .map((a) => ({
+            type: "airport",
+            code: a.code,
+            name: a.name,
+            city: a.city,
+          }));
+        results.push(...airportSuggestions);
       }
 
-      if (isFlightSearch || q.length >= 3) {
+      // Search for flights if query looks like a flight number
+      if (isFlightSearch || q.length >= 2) {
+        const seenFlights = new Set<string>();
+        
+        // First: search saved flights client-side (prioritize these)
+        try {
+          const savedFlights = loadSavedFlights();
+          const matchingSaved = savedFlights
+            .filter((f) => {
+              const flightNum = normalizeFlightNumber(f.flightNumber);
+              return flightNum.startsWith(normalizedQuery) || 
+                     flightNum === normalizedQuery ||
+                     (normalizedQuery.length <= 3 && flightNum.startsWith(normalizedQuery));
+            })
+            .slice(0, 3)
+            .map((f): FlightSuggestion => ({
+              type: "flight",
+              flightNumber: f.flightNumber,
+              airline: f.airline,
+              departureAirport: f.departureAirport,
+              arrivalAirport: f.arrivalAirport,
+              status: f.status,
+              departureTime: f.scheduledTime,
+              source: "saved",
+            }));
+          
+          for (const flight of matchingSaved) {
+            if (!seenFlights.has(flight.flightNumber)) {
+              seenFlights.add(flight.flightNumber);
+              results.push(flight);
+            }
+          }
+        } catch {
+          // Ignore localStorage errors
+        }
+
+        // Second: search live flights from API
         const flightRes = await fetch(`/api/flights/search?query=${encodeURIComponent(q)}`);
         if (flightRes.ok) {
           const flightData = (await flightRes.json()) as { flights: FlightSuggestion[] };
-          const flightSuggestions = (flightData.flights ?? [])
+          const liveFlights = (flightData.flights ?? [])
             .slice(0, 4)
-            .map((f) => ({ ...f, type: "flight" as const }));
-          results.push(...flightSuggestions);
+            .filter((f) => !seenFlights.has(f.flightNumber));
+          
+          results.push(...liveFlights);
         }
       }
 
@@ -194,8 +265,34 @@ export default function SearchBar({ onSearch }: Props) {
   const formatAirportLine = (a: AirportSuggestion) =>
     `${a.code} — ${a.name}${a.city ? `, ${a.city}` : ""}`;
 
-  const formatFlightLine = (f: FlightSuggestion) =>
-    `${f.flightNumber} — ${f.airline} → ${f.arrivalCity ?? f.arrivalAirport}`;
+  const renderFlightSuggestion = (f: FlightSuggestion) => {
+    const route = `${f.departureAirport} → ${f.arrivalAirport}`;
+    const time = formatTime(f.departureTime);
+    const statusClass = getStatusBadgeClass(f.status);
+    const isSaved = f.source === "saved";
+    
+    return (
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${isSaved ? "bg-emerald-500/20 text-emerald-300" : "bg-amber-500/20 text-amber-300"}`}>
+            {isSaved ? "Saved" : "Flight"}
+          </span>
+          <span className="font-medium text-white">{f.flightNumber}</span>
+          <span className="text-gray-400">—</span>
+          <span className="text-gray-300">{f.airline}</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-gray-400">{route}</span>
+          {f.status && (
+            <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusClass}`}>
+              {f.status}
+            </span>
+          )}
+          {time && <span className="text-gray-500">• {time}</span>}
+        </div>
+      </div>
+    );
+  };
 
   const airportSuggestions = suggestions.filter((s): s is AirportSuggestion => s.type === "airport");
   const flightSuggestions = suggestions.filter((s): s is FlightSuggestion => s.type === "flight");
@@ -270,15 +367,12 @@ export default function SearchBar({ onSearch }: Props) {
                         key={`flight-${f.flightNumber}`}
                         type="button"
                         onClick={() => handleSelect(f)}
-                        className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition hover:bg-gray-800 ${
+                        className={`flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left text-sm transition hover:bg-gray-800 ${
                           globalIndex === highlightedIndex ? "bg-gray-800 text-white" : "text-gray-200"
                         }`}
                         onMouseEnter={() => setHighlightedIndex(globalIndex)}
                       >
-                        <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
-                          Flight
-                        </span>
-                        <span>{formatFlightLine(f)}</span>
+                        {renderFlightSuggestion(f)}
                       </button>
                     );
                   })}
