@@ -24,12 +24,22 @@ export default function AppStoreComingSoonCard() {
         and alerts.
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
-        <span className="inline-flex items-center rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-slate-300">
+        <button
+          type="button"
+          disabled
+          className="inline-flex items-center rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-slate-400 cursor-not-allowed opacity-60"
+          aria-label="App Store - Coming soon"
+        >
           App Store
-        </span>
-        <span className="inline-flex items-center rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-slate-300">
+        </button>
+        <button
+          type="button"
+          disabled
+          className="inline-flex items-center rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-slate-400 cursor-not-allowed opacity-60"
+          aria-label="Google Play - Coming soon"
+        >
           Google Play
-        </span>
+        </button>
       </div>
     </motion.div>
   );

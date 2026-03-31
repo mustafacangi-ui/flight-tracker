@@ -192,10 +192,12 @@ export default function Home() {
 
   const fetchFlights = useCallback(
     async (code: string, options?: { skipCache?: boolean }) => {
+      console.log("[homepage] Fetching flights started", { code, skipCache: options?.skipCache });
       setLoading(true);
       setError(null);
 
       if (!options?.skipCache && sessionFlightsCache.current.has(code)) {
+        console.log("[homepage] Using cached flight data", { code });
         const hit = sessionFlightsCache.current.get(code)!;
         const tz = getEffectiveAirportTimeZone(
           code,
@@ -222,6 +224,7 @@ export default function Home() {
       }
 
       try {
+        console.log("[homepage] Making API request for flights", { code });
         const res = await fetch(
           `/api/flights?airport=${encodeURIComponent(code)}`
         );
@@ -230,14 +233,21 @@ export default function Home() {
         try {
           data = (await res.json()) as ApiFlightsResponse;
         } catch {
+          console.error("[homepage] Failed to parse JSON response");
           /* non-JSON body — still handle status below */
         }
 
         if (!res.ok) {
+          console.error("[homepage] API request failed", { 
+            status: res.status, 
+            statusText: res.statusText,
+            error: data.error 
+          });
           if (res.status === 429) {
             setError(data.error ?? RATE_LIMIT_EXCEEDED_MESSAGE);
             const hit = sessionFlightsCache.current.get(code);
             if (hit) {
+              console.log("[homepage] Using cached data due to rate limit");
               const tz = getEffectiveAirportTimeZone(
                 code,
                 selectedAirportRef.current
@@ -261,8 +271,10 @@ export default function Home() {
               (departuresRef.current.length > 0 ||
                 arrivalsRef.current.length > 0)
             ) {
+              console.log("[homepage] Keeping existing flights due to fallback");
               /* keep existing flights */
             } else {
+              console.log("[homepage] No cached data available, clearing flights");
               setDepartures([]);
               setArrivals([]);
               setRawBoardCounts({ dep: 0, arr: 0 });
@@ -270,6 +282,7 @@ export default function Home() {
               setEmptyAfterSuccess(false);
             }
           } else {
+            console.log("[homepage] API error other than rate limit, clearing data");
             setDepartures([]);
             setArrivals([]);
             setRawBoardCounts({ dep: 0, arr: 0 });
@@ -280,6 +293,7 @@ export default function Home() {
                 "Could not load flights. Please try again in a few moments."
             );
           }
+          setLoading(false);
           return;
         }
 
@@ -288,6 +302,11 @@ export default function Home() {
           arrivals: data.arrivals ?? [],
           fetchedAt: Date.now(),
         };
+        console.log("[homepage] API request successful", {
+          code,
+          departuresCount: entry.departures.length,
+          arrivalsCount: entry.arrivals.length
+        });
         sessionFlightsCache.current.set(code, entry);
         writeDebugSessionFidsCache(sessionFlightsCache.current);
 
@@ -310,16 +329,18 @@ export default function Home() {
           entry.departures.length === 0 && entry.arrivals.length === 0
         );
         trackEvent("airport_search_success", { airport: code });
-      } catch {
+      } catch (error) {
+        console.error("[homepage] Unexpected error during fetch", error);
         setDepartures([]);
         setArrivals([]);
         setRawBoardCounts({ dep: 0, arr: 0 });
         setLastUpdated(null);
         setEmptyAfterSuccess(false);
         setError(
-          "We couldn’t reach the server. Check your connection and try again."
+          "We couldn't reach the server. Check your connection and try again."
         );
       } finally {
+        console.log("[homepage] Fetch completed, setting loading to false");
         setLoading(false);
       }
     },
@@ -684,7 +705,7 @@ export default function Home() {
                             dataIsLive ? "font-medium text-emerald-400/95" : ""
                           }
                         >
-                          {dataIsLive ? "Live" : "Cached"}
+                          {dataIsLive ? "Live" : lastUpdated ? `Cached ${Math.floor((Date.now() - lastUpdated.getTime()) / 60000)} min ago` : "Cached"}
                         </span>
                         {lastUpdated ? (
                           <>

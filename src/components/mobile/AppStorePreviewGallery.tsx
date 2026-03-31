@@ -36,12 +36,7 @@ export default function AppStorePreviewGallery() {
         Store listing assets
       </h2>
       <p className="mt-2 text-sm leading-relaxed text-gray-400">
-        Placeholder frames for screenshots and branding. Replace with exported
-        PNGs before submission (copy drafts live in{" "}
-        <code className="rounded bg-black/40 px-1.5 py-0.5 text-[11px] text-sky-200/90">
-          docs/app-store-copy.md
-        </code>
-        ).
+        Preview gallery for upcoming App Store and Google Play listings.
       </p>
 
       <div className="mt-6 space-y-8">

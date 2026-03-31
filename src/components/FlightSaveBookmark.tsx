@@ -69,26 +69,49 @@ export default function FlightSaveBookmark({ payload, className = "" }: Props) {
         void (async () => {
           if (busy) return;
 
+          console.log("[bookmark] Save/remove operation started", {
+            flightNumber: payload.flightNumber,
+            currentlySaved: saved,
+            isPremium: premium,
+            currentSavedCount: savedFlights.length
+          });
+
           const supabase =
             isSupabaseConfigured() ? createBrowserSupabaseClient() : null;
           const {
             data: { user },
           } = (await supabase?.auth.getUser()) ?? { data: { user: null } };
 
-          const atLimit =
-            !saved &&
-            !premium &&
-            !canAddSavedFlight(savedFlights.length, false);
+          console.log("[bookmark] User auth status", { 
+            userId: user?.id ?? null, 
+            isAuthenticated: !!user 
+          });
 
-          if (atLimit) {
-            openUpgrade({ blockedFeature: "saved_flights_limit" });
-            return;
+          // Check limits for free users before attempting save
+          if (!saved && !premium && user) {
+            const canSave = canAddSavedFlight(savedFlights.length, false);
+            console.log("[bookmark] Free tier limit check", {
+              currentCount: savedFlights.length,
+              canSave,
+              limit: 3
+            });
+            
+            if (!canSave) {
+              console.log("[bookmark] Free limit reached, showing upgrade modal");
+              showAppToast({
+                message: "Free limit reached (3 flights). Upgrade to Pro for unlimited saves.",
+                variant: "warning"
+              });
+              openUpgrade({ blockedFeature: "saved_flights_limit" });
+              return;
+            }
           }
 
           if (user) {
             setBusy(true);
             try {
               if (saved) {
+                console.log("[bookmark] Removing saved flight for authenticated user");
                 const match = savedFlights.find(
                   (x) =>
                     savedFlightIdentityKey(x) === savedFlightIdentityKey(payload)
@@ -98,14 +121,25 @@ export default function FlightSaveBookmark({ payload, className = "" }: Props) {
                     `/api/saved-flights?id=${encodeURIComponent(match.serverId)}`,
                     { method: "DELETE", credentials: "same-origin" }
                   );
-                  if (!res.ok) {
+                  if (res.status === 404) {
+                    console.warn("[bookmark] Flight not found on server, removing locally");
                     showAppToast({
-                      message: "Could not remove saved flight",
+                      message: "Flight was already removed",
+                      variant: "warning",
+                    });
+                  } else if (!res.ok) {
+                    const errorData = await res.json().catch(() => ({}));
+                    console.error("[bookmark] Failed to remove saved flight", {
+                      status: res.status,
+                      error: errorData.error
+                    });
+                    showAppToast({
+                      message: "Could not remove saved flight. Please try again.",
                       variant: "error",
                     });
                     return;
                   }
-                  console.log("[saved-flights] delete success (bookmark)");
+                  console.log("[bookmark] Flight removed from server successfully");
                 }
                 removeSavedFlightByIdentity(match ?? payload);
                 refresh();
@@ -117,46 +151,61 @@ export default function FlightSaveBookmark({ payload, className = "" }: Props) {
                   flight_number: payload.flightNumber,
                 });
               } else {
+                console.log("[bookmark] Saving flight for authenticated user");
                 const res = await fetch("/api/saved-flights", {
                   method: "POST",
                   credentials: "same-origin",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify(payload),
                 });
+                
                 if (res.status === 409) {
-                  console.log("[saved-flights] duplicate prevented (bookmark)");
+                  console.log("[bookmark] Duplicate flight detected");
                   showAppToast({
                     message: "This flight is already in your saved list",
                     variant: "warning",
                   });
                   return;
                 }
+                
                 if (res.status === 403) {
-                  const j = (await res.json()) as { code?: string };
+                  const j = (await res.json()) as { code?: string; error?: string };
                   if (j.code === "FREE_LIMIT") {
-                    console.log("[saved-flights] free limit reached (bookmark)");
+                    console.log("[bookmark] Free limit enforced by server");
+                    showAppToast({
+                      message: "Free limit reached (3 flights). Upgrade to Pro for unlimited saves.",
+                      variant: "warning"
+                    });
                     openUpgrade({ blockedFeature: "saved_flights_limit" });
                     return;
                   }
+                  console.error("[bookmark] Server rejected save operation", j.error);
                   showAppToast({
-                    message: "Could not save flight",
+                    message: j.error || "Could not save flight",
                     variant: "error",
                   });
                   return;
                 }
+                
                 if (!res.ok) {
+                  const errorData = await res.json().catch(() => ({}));
+                  console.error("[bookmark] Failed to save flight", {
+                    status: res.status,
+                    error: errorData.error || 'Unknown error'
+                  });
                   showAppToast({
-                    message: "Could not save flight",
+                    message: "Could not save flight. Please try again.",
                     variant: "error",
                   });
                   return;
                 }
+                
                 const body = (await res.json()) as { flight?: SavedFlight };
                 if (body.flight) {
                   upsertSavedFlight(body.flight);
                   refresh();
+                  console.log("[bookmark] Flight saved successfully");
                 }
-                console.log("[saved-flights] insert success (bookmark)");
                 showAppToast({ message: "Flight saved", variant: "success" });
                 trackProductEvent(AnalyticsEvents.flight_saved, {
                   flight_number: payload.flightNumber,
@@ -164,22 +213,32 @@ export default function FlightSaveBookmark({ payload, className = "" }: Props) {
                 trackEvent("save_flight", { flightNumber: payload.flightNumber });
                 dispatchFlightSavedEvent();
               }
+            } catch (error) {
+              console.error("[bookmark] Unexpected error during save/remove operation", error);
+              showAppToast({
+                message: "Something went wrong. Please try again.",
+                variant: "error",
+              });
             } finally {
               setBusy(false);
             }
             return;
           }
 
+          // Local storage fallback for non-authenticated users
+          console.log("[bookmark] Using local storage for unauthenticated user");
           const { saved: nowSaved } = toggleSavedFlight(payload);
           refresh();
           if (nowSaved) {
+            console.log("[bookmark] Flight saved locally");
             trackProductEvent(AnalyticsEvents.flight_saved, {
               flight_number: payload.flightNumber,
             });
             trackEvent("save_flight", { flightNumber: payload.flightNumber });
             dispatchFlightSavedEvent();
-            showAppToast({ message: "Flight saved", variant: "success" });
+            showAppToast({ message: "Flight saved locally", variant: "success" });
           } else {
+            console.log("[bookmark] Flight removed from local storage");
             trackProductEvent(AnalyticsEvents.flight_unsaved, {
               flight_number: payload.flightNumber,
             });

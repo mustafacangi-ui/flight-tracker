@@ -30,6 +30,7 @@ import {
 } from "../../lib/referralStorage";
 import { getAnalyticsSnapshot, topKeys } from "../../lib/localAnalytics";
 import InAppFeedbackCard from "../../components/mobile/InAppFeedbackCard";
+import { showAppToast } from "../../lib/appToast";
 import RateAppCard from "../../components/mobile/RateAppCard";
 
 function SectionTitle({ children }: { children: ReactNode }) {
@@ -85,9 +86,17 @@ export default function RoadmapPageClient() {
     const ok = addWaitlistEmail(waitEmail);
     if (!ok) {
       setWaitErr(true);
+      showAppToast({
+        message: "Please enter a valid email address",
+        variant: "error"
+      });
       return;
     }
     setWaitOk(true);
+    showAppToast({
+      message: "Thanks for joining the waitlist!",
+      variant: "success"
+    });
     setWaitEmail("");
   };
 
@@ -98,9 +107,16 @@ export default function RoadmapPageClient() {
     try {
       await navigator.clipboard.writeText(msg);
       setReferralCopied(true);
+      showAppToast({
+        message: "Invite message copied to clipboard!",
+        variant: "success"
+      });
       window.setTimeout(() => setReferralCopied(false), 2000);
     } catch {
-      /* ignore */
+      showAppToast({
+        message: "Could not copy invite message",
+        variant: "error"
+      });
     }
   };
 
@@ -214,61 +230,85 @@ export default function RoadmapPageClient() {
               <div>
                 <p className="font-semibold text-gray-300">Top pages</p>
                 <ul className="mt-1 space-y-0.5 font-mono">
-                  {topKeys(snap.pageViews, 6).map(({ key, count }) => (
-                    <li key={key}>
-                      {key} — {count}
-                    </li>
-                  ))}
+                  {topKeys(snap.pageViews, 6).length > 0 ? (
+                    topKeys(snap.pageViews, 6).map(({ key, count }) => (
+                      <li key={key}>
+                        {key} — {count}
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-gray-500">No page views yet</li>
+                  )}
                 </ul>
               </div>
               <div>
                 <p className="font-semibold text-gray-300">Airport searches</p>
                 <ul className="mt-1 space-y-0.5 font-mono">
-                  {topKeys(snap.airportSearches, 6).map(({ key, count }) => (
-                    <li key={key}>
-                      {key} — {count}
-                    </li>
-                  ))}
+                  {topKeys(snap.airportSearches, 6).length > 0 ? (
+                    topKeys(snap.airportSearches, 6).map(({ key, count }) => (
+                      <li key={key}>
+                        {key} — {count}
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-gray-500">No airport searches yet</li>
+                  )}
                 </ul>
               </div>
               <div>
                 <p className="font-semibold text-gray-300">Saved flights</p>
                 <ul className="mt-1 space-y-0.5 font-mono">
-                  {topKeys(snap.savedFlights, 6).map(({ key, count }) => (
-                    <li key={key}>
-                      {key} — {count}
-                    </li>
-                  ))}
+                  {topKeys(snap.savedFlights, 6).length > 0 ? (
+                    topKeys(snap.savedFlights, 6).map(({ key, count }) => (
+                      <li key={key}>
+                        {key} — {count}
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-gray-500">No saved flights yet</li>
+                  )}
                 </ul>
               </div>
               <div>
                 <p className="font-semibold text-gray-300">Favorite airports</p>
                 <ul className="mt-1 space-y-0.5 font-mono">
-                  {topKeys(snap.favoriteAirports, 6).map(({ key, count }) => (
-                    <li key={key}>
-                      {key} — {count}
-                    </li>
-                  ))}
+                  {topKeys(snap.favoriteAirports, 6).length > 0 ? (
+                    topKeys(snap.favoriteAirports, 6).map(({ key, count }) => (
+                      <li key={key}>
+                        {key} — {count}
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-gray-500">No favorite airports yet</li>
+                  )}
                 </ul>
               </div>
               <div>
                 <p className="font-semibold text-gray-300">Alert kinds</p>
                 <ul className="mt-1 space-y-0.5 font-mono">
-                  {topKeys(snap.alertKinds, 8).map(({ key, count }) => (
-                    <li key={key}>
-                      {key} — {count}
-                    </li>
-                  ))}
+                  {topKeys(snap.alertKinds, 8).length > 0 ? (
+                    topKeys(snap.alertKinds, 8).map(({ key, count }) => (
+                      <li key={key}>
+                        {key} — {count}
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-gray-500">No alerts triggered yet</li>
+                  )}
                 </ul>
               </div>
               <div>
                 <p className="font-semibold text-gray-300">Modes / toggles</p>
                 <ul className="mt-1 space-y-0.5 font-mono">
-                  {topKeys(snap.modes, 12).map(({ key, count }) => (
-                    <li key={key}>
-                      {key} — {count}
-                    </li>
-                  ))}
+                  {topKeys(snap.modes, 12).length > 0 ? (
+                    topKeys(snap.modes, 12).map(({ key, count }) => (
+                      <li key={key}>
+                        {key} — {count}
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-gray-500">No mode usage yet</li>
+                  )}
                 </ul>
               </div>
             </div>
