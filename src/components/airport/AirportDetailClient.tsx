@@ -408,31 +408,6 @@ export default function AirportDetailClient({ airportCode }: Props) {
           ))}
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setBoardFilter("upcoming")}
-            className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
-              boardFilter === "upcoming"
-                ? "border-sky-500/50 bg-sky-600/25 text-sky-100"
-                : "border-slate-800 bg-slate-900/50 text-slate-400 hover:border-slate-700"
-            }`}
-          >
-            Upcoming
-          </button>
-          <button
-            type="button"
-            onClick={() => setBoardFilter("all")}
-            className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
-              boardFilter === "all"
-                ? "border-sky-500/50 bg-sky-600/25 text-sky-100"
-                : "border-slate-800 bg-slate-900/50 text-slate-400 hover:border-slate-700"
-            }`}
-          >
-            All flights
-          </button>
-        </div>
-
         {/* Tab panels */}
         <section className="mt-6">
           {tab === "departures" || tab === "arrivals" ? (
